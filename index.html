@@ -1,0 +1,1235 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <meta name="color-scheme" content="light dark" />
+    <link rel="icon" href="data:," />
+    <title>Wallpaper Visualizer — Prime Design</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Marcellus&family=Jost:wght@400;500;600&display=swap" rel="stylesheet" />
+    <style>
+      :root{
+        --bg:#f6f1e8; --surface:#fffdf8; --surface2:#efe8da; --ink:#2a2721; --ink-soft:#6d6557;
+        --line:#e0d5c1; --accent:#33523f; --accent-ink:#ffffff; --brass:#a5813f; --brass-soft:#e9dcc0;
+        --danger:#a33b2e; --shadow:0 10px 30px rgba(58,46,24,.13); --stage-bg:#e9e2d2;
+        --chip:#efe8da;
+      }
+      @media (prefers-color-scheme: dark){
+        :root{
+          --bg:#141613; --surface:#1e211c; --surface2:#262a23; --ink:#ede7d8; --ink-soft:#a79d88;
+          --line:#3a3e34; --accent:#7fae8d; --accent-ink:#12211a; --brass:#c9a86a; --brass-soft:#3d382a;
+          --danger:#e08a7c; --shadow:0 10px 30px rgba(0,0,0,.45); --stage-bg:#23261f; --chip:#262a23;
+        }
+      }
+      html{ box-sizing:border-box; }
+      *,*::before,*::after{ box-sizing:inherit; }
+      body{ margin:0; background:var(--bg); color:var(--ink); font-family:"Jost",system-ui,sans-serif; font-size:16px; line-height:1.45; -webkit-text-size-adjust:100%; }
+      button{ font:inherit; cursor:pointer; }
+      input{ font:inherit; }
+      h1,h2,h3,p{ margin:0; }
+
+      /* ---------- header ---------- */
+      .topbar{ display:flex; align-items:center; justify-content:space-between; gap:12px; padding:14px 20px; border-bottom:1px solid var(--line); background:var(--surface); position:sticky; top:0; z-index:40; }
+      .brand{ display:flex; align-items:baseline; gap:12px; min-width:0; }
+      .brand .name{ font-family:"Marcellus",serif; font-size:26px; letter-spacing:.04em; white-space:nowrap; }
+      .brand .name em{ font-style:normal; color:var(--brass); }
+      .brand .tag{ font-size:12.5px; letter-spacing:.14em; text-transform:uppercase; color:var(--ink-soft); white-space:nowrap; }
+      .privacy{ display:flex; align-items:center; gap:7px; font-size:13px; color:var(--ink-soft); background:var(--chip); border:1px solid var(--line); border-radius:999px; padding:7px 12px; white-space:nowrap; }
+      .privacy svg{ flex:none; }
+      .privacy .priv-short{ display:none; }
+      @media (max-width:640px){ .brand .tag{ display:none; } .brand .name{ font-size:21px; } .privacy .priv-full{ display:none; } .privacy .priv-short{ display:inline; } .privacy{ padding:7px 11px; } }
+
+      /* ---------- layout ---------- */
+      .layout{ display:grid; grid-template-columns:minmax(0,1fr) 372px; gap:18px; max-width:1560px; margin:0 auto; padding:18px; align-items:start; }
+      .layout > *{ min-width:0; }
+      @media (max-width:1020px){
+        .layout{ grid-template-columns:minmax(0,1fr); padding:12px; }
+        .library{ margin-top:0; }
+      }
+
+      /* ---------- stage ---------- */
+      .stage{ position:relative; background:var(--stage-bg); border:1px solid var(--line); border-radius:18px; overflow:hidden; box-shadow:var(--shadow); }
+      .stage canvas{ display:block; width:100%; height:auto; touch-action:none; }
+      .stage-hint{ position:absolute; left:50%; bottom:14px; transform:translateX(-50%); background:rgba(24,26,20,.82); color:#f3eddd; font-size:14.5px; padding:9px 16px; border-radius:999px; pointer-events:none; white-space:normal; text-align:center; line-height:1.3; width:max-content; max-width:92%; transition:opacity .25s; }
+      .stage-hint:empty{ opacity:0; }
+      .drop-veil{ position:absolute; inset:0; display:none; align-items:center; justify-content:center; background:rgba(51,82,63,.78); color:#fff; font-size:20px; letter-spacing:.03em; z-index:5; text-align:center; padding:20px; }
+      .stage.dragging .drop-veil{ display:flex; }
+      .compare-handle{ position:absolute; top:0; bottom:0; width:0; display:none; z-index:4; }
+      .compare-handle .bar{ position:absolute; top:0; bottom:0; left:-1.5px; width:3px; background:#fff; box-shadow:0 0 0 1px rgba(0,0,0,.25), 0 0 14px rgba(0,0,0,.35); }
+      .compare-handle .knob{ position:absolute; top:50%; left:0; transform:translate(-50%,-50%); width:42px; height:42px; border-radius:50%; background:#fff; color:#333; display:flex; align-items:center; justify-content:center; box-shadow:0 2px 10px rgba(0,0,0,.35); font-size:15px; letter-spacing:-1px; }
+      .stage.compare-on .compare-handle{ display:block; }
+      .before-tag,.after-tag{ position:absolute; top:12px; font-size:12px; letter-spacing:.12em; text-transform:uppercase; background:rgba(24,26,20,.72); color:#f3eddd; padding:5px 10px; border-radius:6px; display:none; pointer-events:none; z-index:3; }
+      .before-tag{ left:12px; } .after-tag{ right:12px; }
+      .stage.compare-on .before-tag,.stage.compare-on .after-tag{ display:block; }
+
+      /* ---------- design library strip ---------- */
+      .library{ margin-top:16px; background:var(--surface); border:1px solid var(--line); border-radius:18px; padding:14px 16px 16px; box-shadow:var(--shadow); }
+      .lib-head{ display:flex; align-items:center; justify-content:space-between; gap:10px; margin-bottom:12px; flex-wrap:wrap; }
+      .lib-title{ display:flex; align-items:center; gap:10px; font-family:"Marcellus",serif; font-size:19px; }
+      .strip{ display:flex; gap:12px; overflow-x:auto; padding:4px 2px 8px; -webkit-overflow-scrolling:touch; scrollbar-width:thin; }
+      .thumb{ flex:none; width:92px; text-align:center; background:none; border:none; padding:0; }
+      .thumb .sw{ display:block; width:92px; height:92px; border-radius:12px; border:2px solid var(--line); background-size:cover; background-position:center; transition:border-color .15s, transform .15s; }
+      .thumb:active .sw{ transform:scale(.96); }
+      .thumb.sel .sw{ border-color:var(--brass); box-shadow:0 0 0 2px var(--brass-soft); }
+      .thumb .nm{ display:block; margin-top:6px; font-size:12.5px; color:var(--ink-soft); line-height:1.25; }
+      .thumb.sel .nm{ color:var(--ink); font-weight:600; }
+      .lib-note{ font-size:13px; color:var(--ink-soft); margin-top:4px; }
+
+      /* ---------- side panel / steps ---------- */
+      .panel{ display:flex; flex-direction:column; gap:14px; }
+      .step{ background:var(--surface); border:1px solid var(--line); border-radius:16px; padding:16px; box-shadow:var(--shadow); }
+      .step-head{ display:flex; align-items:center; gap:11px; margin-bottom:10px; }
+      .step-num{ flex:none; width:30px; height:30px; border-radius:50%; background:var(--accent); color:var(--accent-ink); display:flex; align-items:center; justify-content:center; font-weight:600; font-size:15px; }
+      .step h2{ font-family:"Marcellus",serif; font-size:19px; font-weight:400; letter-spacing:.02em; }
+      .step .sub{ font-size:13.5px; color:var(--ink-soft); margin:-4px 0 12px 41px; }
+      .step .body{ margin-left:41px; }
+      @media (max-width:480px){ .step .body{ margin-left:0; } .step .sub{ margin-left:0; } }
+      .btnrow{ display:flex; flex-wrap:wrap; gap:9px; }
+      .btn{ display:inline-flex; align-items:center; gap:8px; min-height:50px; padding:10px 16px; border-radius:11px; border:1px solid var(--line); background:var(--surface2); color:var(--ink); font-weight:500; font-size:15px; transition:background .15s,border-color .15s; }
+      .btn:hover{ border-color:var(--brass); }
+      .btn.primary{ background:var(--accent); border-color:var(--accent); color:var(--accent-ink); }
+      .btn.primary:hover{ filter:brightness(1.07); }
+      .btn.big{ width:100%; justify-content:center; min-height:56px; font-size:16.5px; }
+      .btn.danger{ color:var(--danger); }
+      .btn.armed{ background:var(--brass); border-color:var(--brass); color:#fff; }
+      .btn[disabled]{ opacity:.45; cursor:default; }
+      .btn svg{ flex:none; }
+      .switchrow{ display:flex; align-items:center; justify-content:space-between; gap:10px; padding:9px 0 2px; }
+      .switchrow label{ font-size:15px; font-weight:500; }
+      .switch{ -webkit-appearance:none; appearance:none; width:52px; height:30px; border-radius:999px; background:var(--line); position:relative; cursor:pointer; flex:none; margin:0; border:none; outline-offset:2px; transition:background .15s; vertical-align:middle; }
+      .switch::after{ content:""; position:absolute; top:3px; left:3px; width:24px; height:24px; border-radius:50%; background:#fff; box-shadow:0 1px 4px rgba(0,0,0,.3); transition:left .15s; }
+      .switch:checked{ background:var(--accent); }
+      .switch:checked::after{ left:25px; }
+
+      .wallchips{ display:flex; flex-wrap:wrap; gap:8px; margin-bottom:10px; }
+      .wallchips:empty{ display:none; }
+      .wchip{ border:1px solid var(--line); background:var(--chip); color:var(--ink); border-radius:999px; padding:9px 15px; font-size:14.5px; font-weight:500; min-height:42px; }
+      .wchip.sel{ background:var(--accent); border-color:var(--accent); color:var(--accent-ink); }
+
+      .field{ margin-bottom:13px; }
+      .field label{ display:flex; justify-content:space-between; align-items:baseline; font-size:14.5px; font-weight:500; margin-bottom:6px; }
+      .field label .val{ color:var(--brass); font-weight:600; font-size:14px; }
+      .field .hint{ font-size:12.5px; color:var(--ink-soft); margin-top:4px; }
+      .numrow{ display:flex; gap:9px; flex-wrap:wrap; }
+      .numrow .field{ flex:1 1 128px; margin-bottom:0; }
+      .numin{ display:flex; align-items:center; border:1px solid var(--line); border-radius:10px; background:var(--surface); overflow:hidden; }
+      .numin input{ width:100%; border:none; background:none; color:var(--ink); padding:11px 4px 11px 12px; font-size:16px; outline:none; min-width:0; }
+      .numin .unit{ padding-right:11px; color:var(--ink-soft); font-size:13.5px; }
+      input[type=range]{ -webkit-appearance:none; appearance:none; width:100%; height:34px; background:transparent; margin:0; }
+      input[type=range]::-webkit-slider-runnable-track{ height:5px; border-radius:3px; background:var(--line); }
+      input[type=range]::-webkit-slider-thumb{ -webkit-appearance:none; width:26px; height:26px; border-radius:50%; background:var(--brass); margin-top:-10.5px; box-shadow:0 1px 5px rgba(0,0,0,.3); border:2px solid #fff; }
+      input[type=range]::-moz-range-track{ height:5px; border-radius:3px; background:var(--line); }
+      input[type=range]::-moz-range-thumb{ width:24px; height:24px; border-radius:50%; background:var(--brass); border:2px solid #fff; box-shadow:0 1px 5px rgba(0,0,0,.3); }
+      .fineprint{ font-size:12.5px; color:var(--ink-soft); margin-top:10px; text-align:center; }
+
+      .toast{ position:fixed; left:50%; bottom:26px; transform:translate(-50%,20px); background:rgba(24,26,20,.92); color:#f3eddd; padding:12px 20px; border-radius:12px; font-size:15px; z-index:80; opacity:0; pointer-events:none; transition:opacity .25s, transform .25s; max-width:88vw; text-align:center; }
+      .toast.show{ opacity:1; transform:translate(-50%,0); }
+      .hidden-file{ position:absolute; width:1px; height:1px; opacity:0; overflow:hidden; }
+    </style>
+  </head>
+  <body>
+    <header class="topbar">
+      <div class="brand">
+        <div class="name">Prime <em>Design</em></div>
+        <div class="tag">Wallpaper Visualizer · Vancouver</div>
+      </div>
+      <div class="privacy" title="Photos are processed locally in your browser and never uploaded">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><rect x="4" y="10" width="16" height="10" rx="2"/><path d="M8 10V7a4 4 0 0 1 8 0v3"/></svg>
+        <span class="priv-full">Private — photos never leave this device</span><span class="priv-short">Photos stay on this device</span>
+      </div>
+    </header>
+
+    <div class="layout">
+      <section class="stage-col" id="stageCol">
+        <div class="stage" id="stage">
+          <canvas id="view" width="1280" height="880"></canvas>
+          <div class="before-tag">Before</div>
+          <div class="after-tag">After</div>
+          <div class="compare-handle" id="cmpHandle"><div class="bar"></div><div class="knob">&#8249;&#8250;</div></div>
+          <div class="stage-hint" id="stageHint"></div>
+          <div class="drop-veil">Drop a room photo to load it</div>
+        </div>
+
+        <div class="library" id="library">
+          <div class="lib-head">
+            <div class="lib-title"><span class="step-num" style="width:26px;height:26px;font-size:13.5px;">2</span> Choose a design</div>
+            <button class="btn" id="btnUploadDesign" style="min-height:44px;">
+              <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 16V4m0 0 4 4m-4-4L8 8"/><path d="M4 16v3a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-3"/></svg>
+              Upload a design
+            </button>
+          </div>
+          <div class="strip" id="strip"></div>
+          <p class="lib-note">Tap any design to dress the selected wall instantly. Uploaded designs can come from any brand or supplier — a flat pattern or product image works best.</p>
+        </div>
+      </section>
+
+      <aside class="panel">
+        <div class="step" id="stepRoom">
+          <div class="step-head"><span class="step-num">1</span><h2>Add the room photo</h2></div>
+          <p class="sub">A client's room, or try the sample room to see how it works.</p>
+          <div class="body">
+            <div class="btnrow">
+              <button class="btn primary" id="btnUploadRoom">
+                <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 16V4m0 0 4 4m-4-4L8 8"/><path d="M4 16v3a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-3"/></svg>
+                Upload room photo
+              </button>
+              <button class="btn" id="btnSampleRoom">Sample room</button>
+            </div>
+            <p class="hint" style="font-size:12.5px;color:var(--ink-soft);margin-top:9px;">You can also drag &amp; drop a photo onto the picture.</p>
+          </div>
+        </div>
+
+        <div class="step" id="stepWalls">
+          <div class="step-head"><span class="step-num">3</span><h2>Tap the wall</h2></div>
+          <p class="sub" id="wallSub">Tap any wall in the photo and the design is applied to the whole wall — around furniture, in the room's own light. Tap another wall to paper it too.</p>
+          <div class="body">
+            <div class="wallchips" id="wallChips"></div>
+            <div class="btnrow">
+              <button class="btn" id="btnRedoWall">Re-tap outline</button>
+              <button class="btn danger" id="btnDeleteWall">Remove wall</button>
+            </div>
+            <div class="switchrow">
+              <label for="swCorners">Refine corners by hand</label>
+              <input type="checkbox" class="switch" id="swCorners" />
+            </div>
+            <p class="hint" style="font-size:12.5px;color:var(--ink-soft);">If an outline misses an edge, turn this on and drag the four corner dots into place.</p>
+          </div>
+        </div>
+
+        <div class="step" id="stepAdjust">
+          <div class="step-head"><span class="step-num">4</span><h2>True scale &amp; realism</h2></div>
+          <p class="sub">Set the wall's real width and the paper's repeat so the pattern appears at true size.</p>
+          <div class="body">
+            <div class="numrow">
+              <div class="field">
+                <label>Wall width</label>
+                <div class="numin"><input id="inWallW" type="number" inputmode="decimal" step="0.1" min="0.5" max="30" value="3.6" /><span class="unit">m</span></div>
+              </div>
+              <div class="field">
+                <label>Repeat width</label>
+                <div class="numin"><input id="inRepW" type="number" inputmode="decimal" step="0.5" min="5" max="300" value="53" /><span class="unit">cm</span></div>
+              </div>
+              <div class="field">
+                <label>Repeat height</label>
+                <div class="numin"><input id="inRepH" type="number" inputmode="decimal" step="0.5" min="5" max="300" placeholder="= width" /><span class="unit">cm</span></div>
+              </div>
+            </div>
+            <div class="field" style="margin-top:14px;">
+              <label>Pattern size <span class="val" id="valSize">100%</span></label>
+              <input type="range" id="rgSize" min="40" max="250" value="100" />
+              <p class="hint">100% is true scale from the measurements above — nudge it to eyeball a fit.</p>
+            </div>
+            <div class="field">
+              <label>Light &amp; shadow <span class="val" id="valLight">75%</span></label>
+              <input type="range" id="rgLight" min="0" max="100" value="75" />
+              <p class="hint">Keeps the room's real light, shading and shadows over the paper.</p>
+            </div>
+            <div class="field" style="margin-bottom:2px;">
+              <label>Pattern intensity <span class="val" id="valInt">100%</span></label>
+              <input type="range" id="rgInt" min="20" max="100" value="100" />
+            </div>
+          </div>
+        </div>
+
+        <div class="step" id="stepFinish">
+          <div class="step-head"><span class="step-num">5</span><h2>Compare &amp; send</h2></div>
+          <div class="body">
+            <div class="switchrow" style="padding-top:0;">
+              <label for="swCompare">Before / after slider</label>
+              <input type="checkbox" class="switch" id="swCompare" />
+            </div>
+            <div class="field" id="cmpField" style="display:none;">
+              <input type="range" id="rgCompare" min="0" max="100" value="55" />
+            </div>
+            <button class="btn primary big" id="btnDownload">
+              <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 4v12m0 0 4-4m-4 4-4-4"/><path d="M4 17v2a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-2"/></svg>
+              Download preview PNG
+            </button>
+            <p class="fineprint">Full photo resolution, ready to send to your client.</p>
+          </div>
+        </div>
+      </aside>
+    </div>
+
+    <div class="toast" id="toast"></div>
+
+<script>
+"use strict";
+/* ============================================================
+   Prime Design — Wallpaper Visualizer
+   Everything runs locally: flood-fill wall detection, homography
+   perspective warp, luminance light/shadow transfer, full-res PNG.
+   ============================================================ */
+const $ = id => document.getElementById(id);
+const view = $("view"), vctx = view.getContext("2d");
+const stage = $("stage"), hintEl = $("stageHint"), toastEl = $("toast");
+
+let toastTimer = null;
+function toast(msg, ms){
+  toastEl.textContent = msg;
+  toastEl.classList.add("show");
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(()=>toastEl.classList.remove("show"), ms || 2600);
+}
+function hint(msg){ hintEl.textContent = msg || ""; }
+function mkCanvas(w,h){ const c=document.createElement("canvas"); c.width=Math.max(1,Math.round(w)); c.height=Math.max(1,Math.round(h)); return c; }
+function clamp(v,a,b){ return v<a?a:(v>b?b:v); }
+
+/* ---------------- state ---------------- */
+const RENDER_MAX = 1800;         // interactive render resolution cap
+const ANALYSIS_MAX = 720;        // wall-detection resolution cap
+const state = {
+  roomImg: null,                 // HTMLImageElement / ImageBitmap source
+  roomName: "room",
+  natW: 0, natH: 0,
+  RW: 0, RH: 0,                  // interactive render size
+  base: null,                    // room canvas at render size
+  lum: null,                     // grayscale luminance canvas at render size
+  aW: 0, aH: 0, aData: null,     // analysis image
+  walls: [],                     // wall objects
+  activeWall: -1,
+  patterns: [],                  // {id,name,img,thumb}
+  currentDesign: null,
+  cornersMode: false,
+  redoArm: false,
+  compareOn: false,
+  compareX: 0.55,                // 0..1 split
+  light: 0.75,
+  intensity: 1.0,
+  wallSeq: 0,
+  patSeq: 0,
+  renderQueued: false,
+};
+
+/* ---------------- pattern sources ---------------- */
+function addPattern(name, img){
+  const id = ++state.patSeq;
+  const t = mkCanvas(184,184), tc = t.getContext("2d");
+  // cover-fit thumbnail
+  const s = Math.max(184/img.width, 184/img.height);
+  tc.drawImage(img, (184-img.width*s)/2, (184-img.height*s)/2, img.width*s, img.height*s);
+  const p = { id, name, img, thumb: t.toDataURL("image/png") };
+  state.patterns.push(p);
+  if(!state.currentDesign) state.currentDesign = id;
+  renderStrip();
+  return p;
+}
+function patternById(id){ return state.patterns.find(p=>p.id===id) || null; }
+
+function renderStrip(){
+  const strip = $("strip");
+  strip.innerHTML = "";
+  state.patterns.forEach(p=>{
+    const b = document.createElement("button");
+    b.className = "thumb" + (p.id===state.currentDesign ? " sel" : "");
+    b.innerHTML = '<span class="sw" style="background-image:url(' + p.thumb + ')"></span><span class="nm"></span>';
+    b.querySelector(".nm").textContent = p.name;
+    b.addEventListener("click", ()=> applyDesign(p.id));
+    strip.appendChild(b);
+  });
+}
+function applyDesign(id){
+  state.currentDesign = id;
+  const w = activeWallObj();
+  if(w){ w.designId = id; w.patCache = null; scheduleRender(); toast("Design applied to " + w.name + "."); }
+  renderStrip();
+}
+
+/* ---------------- generated sample patterns ---------------- */
+function samplePatternCanvas(draw){
+  const c = mkCanvas(512,512), x = c.getContext("2d");
+  draw(x,512);
+  return c;
+}
+function wrapDraw(x, S, fn){
+  for(const dx of [-S,0,S]) for(const dy of [-S,0,S]){ x.save(); x.translate(dx,dy); fn(); x.restore(); }
+}
+function makeSamples(){
+  // 1 — Botanical fern on deep green
+  const bot = samplePatternCanvas((x,S)=>{
+    x.fillStyle = "#2e4a38"; x.fillRect(0,0,S,S);
+    const cols = ["#7fae8d","#a8c6a0","#5d8a6b","#cfe0bd"];
+    function frond(cx,cy,ang,len,col){
+      x.save(); x.translate(cx,cy); x.rotate(ang);
+      x.strokeStyle = col; x.lineWidth = 3; x.beginPath(); x.moveTo(0,0);
+      x.quadraticCurveTo(len*0.12,-len*0.5, 0,-len); x.stroke();
+      x.fillStyle = col;
+      for(let i=1;i<=7;i++){
+        const t=i/8, y=-len*t, wdt=len*0.30*(1-t*0.75);
+        for(const sgn of [-1,1]){
+          x.beginPath();
+          x.ellipse(sgn*wdt*0.55, y, wdt*0.55, wdt*0.20, sgn*0.6, 0, Math.PI*2);
+          x.fill();
+        }
+      }
+      x.restore();
+    }
+    const spots=[[70,470,0.2,215],[250,500,-0.25,250],[430,480,0.3,205],[160,300,0.9,150],[360,290,-0.9,160],[480,120,2.6,140],[40,140,-2.7,150],[250,180,3.1,120]];
+    spots.forEach((s,i)=> wrapDraw(x,S,()=> frond(s[0],s[1],s[2],s[3], cols[i%cols.length])));
+    x.fillStyle = "rgba(233,220,192,.85)";
+    [[120,90],[330,390],[470,300],[90,330]].forEach(p=> wrapDraw(x,S,()=>{ x.beginPath(); x.arc(p[0],p[1],5,0,Math.PI*2); x.fill(); }));
+  });
+  // 2 — Art deco fan, ink blue & gold
+  const deco = samplePatternCanvas((x,S)=>{
+    x.fillStyle = "#22304a"; x.fillRect(0,0,S,S);
+    function fan(cx,cy,r){
+      for(let i=5;i>=1;i--){
+        x.beginPath(); x.arc(cx,cy,r*i/5,Math.PI,Math.PI*2);
+        x.fillStyle = i%2 ? "#c9a35f" : "#31496e"; x.fill();
+        x.strokeStyle = "rgba(240,225,190,.75)"; x.lineWidth = 2; x.stroke();
+      }
+      x.beginPath(); x.arc(cx,cy,4,0,Math.PI*2); x.fillStyle="#e9dcc0"; x.fill();
+    }
+    const R=86, step=R*2;
+    for(let row=0; row*step < S+step; row++)
+      for(let col=0; col*step < S+step; col++){
+        const cx = col*step + (row%2 ? R : 0), cy = row*step;
+        wrapDraw(x,S,()=> fan(cx,cy,R));
+      }
+    x.fillStyle = "rgba(201,163,95,.5)"; x.fillRect(0,0,S,3);
+  });
+  // 3 — Ticking stripe, cream & sage
+  const stripe = samplePatternCanvas((x,S)=>{
+    x.fillStyle = "#f0e9d8"; x.fillRect(0,0,S,S);
+    const bands=[[0,64,"#f0e9d8"],[64,26,"#9db08c"],[90,8,"#75875f"],[98,30,"#f0e9d8"],[128,10,"#c3b28a"]];
+    for(let bx=0; bx<S; bx+=128) bands.forEach(b=>{ x.fillStyle=b[2]; x.fillRect(bx+b[0],0,b[1],S); });
+  });
+  // 4 — Classic damask, taupe & ivory
+  const dam = samplePatternCanvas((x,S)=>{
+    x.fillStyle = "#a08a68"; x.fillRect(0,0,S,S);
+    function motif(cx,cy,s){
+      x.save(); x.translate(cx,cy); x.scale(s,s);
+      x.fillStyle = "#e5d9bf";
+      x.beginPath();
+      x.moveTo(0,-58);
+      x.bezierCurveTo(30,-30, 34,6, 0,52);
+      x.bezierCurveTo(-34,6, -30,-30, 0,-58);
+      x.fill();
+      x.fillStyle = "#a08a68";
+      x.beginPath();
+      x.moveTo(0,-34);
+      x.bezierCurveTo(16,-16, 17,4, 0,30);
+      x.bezierCurveTo(-17,4, -16,-16, 0,-34);
+      x.fill();
+      x.fillStyle = "#e5d9bf";
+      x.beginPath(); x.arc(0,-2,7,0,Math.PI*2); x.fill();
+      for(const sx of [-1,1]){
+        x.beginPath(); x.ellipse(sx*30,18,10,20,sx*0.5,0,Math.PI*2); x.fillStyle="#d9cbae"; x.fill();
+      }
+      x.restore();
+    }
+    for(let r=0;r<3;r++) for(let c=0;c<3;c++){
+      const cx=c*170+85+(r%2?42:0), cy=r*170+85;
+      wrapDraw(x,S,()=> motif(cx,cy,1));
+      wrapDraw(x,S,()=>{ x.beginPath(); x.arc(cx+85,cy+85,5,0,Math.PI*2); x.fillStyle="#e5d9bf"; x.fill(); });
+    }
+  });
+  addPattern("Botanical Fern", bot);
+  addPattern("Deco Fan", deco);
+  addPattern("Ticking Stripe", stripe);
+  addPattern("Classic Damask", dam);
+}
+
+/* ---------------- sample room (drawn scene, 1600x1150) ---------------- */
+function buildSampleRoom(){
+  const W=1600,H=1150, c=mkCanvas(W,H), x=c.getContext("2d");
+  function poly(pts,fill){ x.beginPath(); x.moveTo(pts[0][0],pts[0][1]); for(let i=1;i<pts.length;i++) x.lineTo(pts[i][0],pts[i][1]); x.closePath(); x.fillStyle=fill; x.fill(); }
+  function rrect(px,py,pw,ph,r,fill){ x.beginPath(); x.moveTo(px+r,py); x.arcTo(px+pw,py,px+pw,py+ph,r); x.arcTo(px+pw,py+ph,px,py+ph,r); x.arcTo(px,py+ph,px,py,r); x.arcTo(px,py,px+pw,py,r); x.closePath(); x.fillStyle=fill; x.fill(); }
+  // ceiling
+  poly([[0,0],[1600,0],[1180,120],[250,120]], "#efe9dd");
+  // left & right walls — tones distinct from the back wall so tap-detection stays on one wall
+  let g=x.createLinearGradient(0,60,0,940); g.addColorStop(0,"#8f9c84"); g.addColorStop(1,"#7a8970");
+  poly([[0,0],[250,120],[250,780],[0,940]], g);
+  g=x.createLinearGradient(0,60,0,940); g.addColorStop(0,"#b09a7d"); g.addColorStop(1,"#9d8668");
+  poly([[1600,0],[1180,120],[1180,780],[1600,940]], g);
+  // back wall — soft vertical gradient (flood fill follows its neighbours)
+  g=x.createLinearGradient(0,120,0,780); g.addColorStop(0,"#e9e0cd"); g.addColorStop(1,"#ddd0b8");
+  x.fillStyle=g; x.fillRect(250,120,930,660);
+  // window light wash on back wall (right side, gentle)
+  g=x.createLinearGradient(880,0,1180,0); g.addColorStop(0,"rgba(255,250,230,0)"); g.addColorStop(1,"rgba(255,250,230,.35)");
+  x.fillStyle=g; x.fillRect(880,120,300,660);
+  // crown moulding + shadow gaps (also give tap-detection a clean edge to stop at)
+  x.fillStyle="#f8f4ea"; x.fillRect(250,104,930,16);
+  x.fillStyle="rgba(70,50,25,.45)"; x.fillRect(250,120,930,5);
+  x.fillStyle="rgba(70,50,25,.40)"; x.fillRect(250,736,930,5);
+  let cg=x.createLinearGradient(250,0,268,0); cg.addColorStop(0,"rgba(60,40,18,.20)"); cg.addColorStop(1,"rgba(60,40,18,0)");
+  x.fillStyle=cg; x.fillRect(250,120,18,620);
+  cg=x.createLinearGradient(1180,0,1162,0); cg.addColorStop(0,"rgba(60,40,18,.20)"); cg.addColorStop(1,"rgba(60,40,18,0)");
+  x.fillStyle=cg; x.fillRect(1162,120,18,620);
+  // floor
+  g=x.createLinearGradient(0,780,0,1150); g.addColorStop(0,"#b08256"); g.addColorStop(1,"#96693f");
+  poly([[0,940],[250,780],[1180,780],[1600,940],[1600,1150],[0,1150]], g);
+  x.strokeStyle="rgba(70,45,20,.35)"; x.lineWidth=3;
+  [[250,780],[430,1150],[1180,780],[1010,1150],[715,780],[715,1150],[250,780],[1600,1150],[1180,780],[0,1150]].reduce((a,p,i,arr)=> i%2? a.concat([[arr[i-1],p]]) : a, []).forEach(seg=>{ x.beginPath(); x.moveTo(seg[0][0],seg[0][1]); x.lineTo(seg[1][0],seg[1][1]); x.stroke(); });
+  x.beginPath(); x.moveTo(120,940); x.lineTo(1490,940); x.stroke();
+  // baseboards
+  poly([[250,742],[1180,780],[1180,780],[250,780]], "#f7f2e6"); x.fillRect(250,742,930,38);
+  poly([[0,902],[250,748],[250,780],[0,940]], "#f2ecdd");
+  poly([[1180,748],[1600,902],[1600,940],[1180,780]], "#f2ecdd");
+  // window on right wall
+  poly([[1300,215],[1515,175],[1515,555],[1300,610]], "#fbfaf4");
+  let wg=x.createLinearGradient(1300,200,1515,560); wg.addColorStop(0,"#dceef2"); wg.addColorStop(1,"#bcd6de");
+  poly([[1322,232],[1493,196],[1493,538],[1322,588]], wg);
+  x.strokeStyle="#fbfaf4"; x.lineWidth=9;
+  x.beginPath(); x.moveTo(1407,214); x.lineTo(1407,568); x.stroke();
+  x.beginPath(); x.moveTo(1322,398); x.lineTo(1493,362); x.stroke();
+  // light spill on floor
+  poly([[1180,820],[1560,940],[1600,1060],[1240,900]], "rgba(255,246,214,.20)");
+  // picture frame on back wall
+  x.fillStyle="#5a4630"; x.fillRect(818,248,196,186);
+  x.fillStyle="#cdd6bd"; x.fillRect(834,264,164,154);
+  x.fillStyle="#8ba07c"; x.beginPath(); x.arc(880,330,34,0,Math.PI*2); x.fill();
+  x.fillStyle="#b98d5f"; x.beginPath(); x.arc(950,368,24,0,Math.PI*2); x.fill();
+  x.fillStyle="#e5dcc4"; x.fillRect(834,392,164,26);
+  // floor lamp (right of sofa)
+  x.strokeStyle="#3d3a33"; x.lineWidth=7; x.beginPath(); x.moveTo(1122,470); x.lineTo(1122,796); x.stroke();
+  x.beginPath(); x.ellipse(1122,800,44,9,0,0,Math.PI*2); x.fillStyle="#3d3a33"; x.fill();
+  poly([[1082,392],[1162,392],[1180,478],[1064,478]], "#dfae62");
+  let lg=x.createRadialGradient(1122,440,10,1122,440,120); lg.addColorStop(0,"rgba(255,230,160,.5)"); lg.addColorStop(1,"rgba(255,230,160,0)");
+  x.fillStyle=lg; x.fillRect(1002,320,240,240);
+  // plant (left)
+  x.fillStyle="#a35f3d"; x.beginPath(); x.moveTo(292,706); x.lineTo(372,706); x.lineTo(360,796); x.lineTo(304,796); x.closePath(); x.fill();
+  x.strokeStyle="#4c6b4f"; x.lineWidth=5; x.beginPath(); x.moveTo(332,712); x.quadraticCurveTo(330,600,326,540); x.stroke();
+  const leafCols=["#55795a","#688a63","#47684e"];
+  [[326,520,0.9],[290,560,2.2],[366,556,-2.2],[310,610,1.9],[356,606,-1.9],[326,470,0.2]].forEach((L,i)=>{
+    x.save(); x.translate(L[0],L[1]); x.rotate(L[2]); x.fillStyle=leafCols[i%3];
+    x.beginPath(); x.ellipse(0,-34,17,38,0,0,Math.PI*2); x.fill(); x.restore();
+  });
+  // rug
+  poly([[430,902],[1012,884],[1126,1012],[352,1036]], "#c9b48f");
+  poly([[462,916],[990,900],[1086,1002],[392,1022]], "#bfa87f");
+  // sofa shadow + sofa
+  x.fillStyle="rgba(60,35,15,.25)"; x.beginPath(); x.ellipse(715,852,330,26,0,0,Math.PI*2); x.fill();
+  rrect(428,596,574,150,26,"#77866c");
+  rrect(428,690,574,140,22,"#6d7d62");
+  rrect(410,640,64,168,24,"#627157");
+  rrect(956,640,64,168,24,"#627157");
+  x.fillStyle="#71816a"; x.fillRect(478,700,250,118); x.fillRect(738,700,250,118);
+  x.strokeStyle="rgba(40,50,35,.35)"; x.lineWidth=3; x.beginPath(); x.moveTo(733,706); x.lineTo(733,812); x.stroke();
+  rrect(520,640,150,64,16,"#c8b28a"); rrect(762,640,150,64,16,"#a8b39a");
+  x.fillStyle="#4c4438"; x.fillRect(452,828,16,26); x.fillRect(962,828,16,26);
+  // coffee table
+  x.fillStyle="rgba(60,35,15,.22)"; x.beginPath(); x.ellipse(720,952,190,16,0,0,Math.PI*2); x.fill();
+  x.fillStyle="#6f4f33"; x.beginPath(); x.ellipse(720,918,185,26,0,0,Math.PI*2); x.fill();
+  x.fillRect(700,918,12,32); x.fillRect(728,918,12,32);
+  // book on table
+  rrect(648,894,74,16,3,"#8a4f3d"); rrect(654,888,62,9,3,"#e8dfc8");
+  return c;
+}
+
+/* ---------------- room loading ---------------- */
+function setRoom(img, name){
+  state.roomImg = img; state.roomName = name || "room";
+  state.natW = img.width; state.natH = img.height;
+  const s = Math.min(1, RENDER_MAX / Math.max(state.natW, state.natH));
+  state.RW = Math.round(state.natW * s); state.RH = Math.round(state.natH * s);
+  state.base = mkCanvas(state.RW, state.RH);
+  state.base.getContext("2d").drawImage(img, 0, 0, state.RW, state.RH);
+  // luminance
+  state.lum = mkCanvas(state.RW, state.RH);
+  const lx = state.lum.getContext("2d");
+  lx.drawImage(img, 0, 0, state.RW, state.RH);
+  const id = lx.getImageData(0,0,state.RW,state.RH), d = id.data;
+  for(let i=0;i<d.length;i+=4){ const g = 0.299*d[i] + 0.587*d[i+1] + 0.114*d[i+2]; d[i]=d[i+1]=d[i+2]=g; }
+  lx.putImageData(id,0,0);
+  // analysis copy for wall detection
+  const as = Math.min(1, ANALYSIS_MAX / Math.max(state.natW, state.natH));
+  state.aW = Math.max(2, Math.round(state.natW*as)); state.aH = Math.max(2, Math.round(state.natH*as));
+  const ac = mkCanvas(state.aW, state.aH), ax = ac.getContext("2d");
+  ax.drawImage(img, 0, 0, state.aW, state.aH);
+  state.aData = ax.getImageData(0,0,state.aW,state.aH).data;
+  edgeBarrier = null;
+  state.walls = []; state.activeWall = -1;
+  view.width = state.RW; view.height = state.RH;
+  renderWallChips();
+  scheduleRender();
+}
+async function fileToImage(file){
+  try{
+    const bmp = await createImageBitmap(file, { imageOrientation: "from-image" });
+    return bmp;
+  }catch(e){
+    return new Promise((res, rej)=>{
+      const img = new Image();
+      img.onload = ()=> res(img);
+      img.onerror = rej;
+      img.src = URL.createObjectURL(file);
+    });
+  }
+}
+
+/* ---------------- flood-fill wall detection ----------------
+   Region growing from the tap point, but growth may not cross a
+   strong luminance edge — that is what keeps the fill on one wall
+   surface (ceiling line, baseboard, furniture edges all stop it),
+   while smooth shading gradients on the wall itself still chain. */
+let edgeBarrier = null;
+function buildEdgeBarrier(){
+  const w = state.aW, h = state.aH, data = state.aData;
+  const lum = new Float32Array(w*h);
+  for(let i=0;i<w*h;i++) lum[i] = 0.299*data[i*4] + 0.587*data[i*4+1] + 0.114*data[i*4+2];
+  edgeBarrier = new Uint8Array(w*h);
+  for(let y=0;y<h;y++) for(let xx=0;xx<w;xx++){
+    const i = y*w+xx;
+    let g = 0;
+    if(xx+1<w) g = Math.max(g, Math.abs(lum[i+1]-lum[i]));
+    if(y+1<h) g = Math.max(g, Math.abs(lum[i+w]-lum[i]));
+    if(g > 30) edgeBarrier[i] = 1;
+  }
+}
+function floodFillWall(seedAx, seedAy, seedTol, stepTol){
+  const w = state.aW, h = state.aH, data = state.aData;
+  if(!data || seedAx<0 || seedAy<0 || seedAx>=w || seedAy>=h) return null;
+  if(!edgeBarrier) buildEdgeBarrier();
+  const si = (seedAy*w + seedAx) * 4;
+  const sr=data[si], sg=data[si+1], sb=data[si+2];
+  const mask = new Uint8Array(w*h);
+  const seen = new Uint8Array(w*h);
+  const stack = [seedAy*w + seedAx];
+  seen[stack[0]] = 1; mask[stack[0]] = 1;
+  let count = 1;
+  function distTo(i, r,g,b){ const dr=data[i*4]-r, dg=data[i*4+1]-g, db=data[i*4+2]-b; return dr*dr+dg*dg+db*db; }
+  while(stack.length){
+    const cur = stack.pop();
+    const cx = cur % w, cy = (cur / w) | 0;
+    const cr=data[cur*4], cg=data[cur*4+1], cb=data[cur*4+2];
+    const curEdge = edgeBarrier[cur];
+    for(let k=0;k<4;k++){
+      let nx=cx, ny=cy;
+      if(k===0) nx--; else if(k===1) nx++; else if(k===2) ny--; else ny++;
+      if(nx<0||ny<0||nx>=w||ny>=h) continue;
+      const ni = ny*w+nx;
+      if(seen[ni]) continue;
+      seen[ni] = 1;
+      if(curEdge || edgeBarrier[ni]) continue;   // never cross a hard edge
+      if(distTo(ni, sr,sg,sb) < seedTol || distTo(ni, cr,cg,cb) < stepTol){
+        mask[ni] = 1; count++; stack.push(ni);
+      }
+    }
+  }
+  if(count < w*h*0.012) return null;
+  // mask canvas (analysis res), softly feathered
+  const mc = mkCanvas(w,h), mx = mc.getContext("2d");
+  const mid = mx.createImageData(w,h), md = mid.data;
+  for(let i=0;i<w*h;i++){ md[i*4]=md[i*4+1]=md[i*4+2]=255; md[i*4+3]=mask[i]*255; }
+  mx.putImageData(mid,0,0);
+  const half = mkCanvas(Math.max(2,w>>1), Math.max(2,h>>1));
+  half.getContext("2d").drawImage(mc, 0, 0, half.width, half.height);
+  const soft = mkCanvas(w,h), sx = soft.getContext("2d");
+  sx.imageSmoothingEnabled = true;
+  sx.drawImage(half, 0, 0, w, h);
+  // quad from extreme points
+  let tl=[1e9,0], br=[-1e9,0], tr=[-1e9,0], bl=[1e9,0];
+  for(let y=0;y<h;y+=2) for(let xx=0;xx<w;xx+=2){
+    if(!mask[y*w+xx]) continue;
+    const s1=xx+y, s2=xx-y;
+    if(s1<tl[0]) tl=[s1,[xx,y]]; if(s1>br[0]) br=[s1,[xx,y]];
+    if(s2>tr[0]) tr=[s2,[xx,y]]; if(s2<bl[0]) bl=[s2,[xx,y]];
+  }
+  const k = state.RW / w;
+  const quad = [tl[1], tr[1], br[1], bl[1]].map(p=>({ x:p[0]*k, y:p[1]*k }));
+  return { mask, maskCanvas: soft, quad, count };
+}
+function quadMaskFallback(quadRender){
+  // last resort when a fill leaks: use the corner quad itself as the wall area
+  const w = state.aW, h = state.aH, k = w / state.RW;
+  const q = quadRender.map(p=>({ x:p.x*k, y:p.y*k }));
+  const mask = new Uint8Array(w*h);
+  let count = 0;
+  function inside(px, py){
+    let sign = 0;
+    for(let i=0;i<4;i++){
+      const a = q[i], b = q[(i+1)%4];
+      const cr = (b.x-a.x)*(py-a.y) - (b.y-a.y)*(px-a.x);
+      if(i===0) sign = Math.sign(cr);
+      else if(Math.sign(cr) !== sign) return false;
+    }
+    return true;
+  }
+  const xs = q.map(p=>p.x), ys = q.map(p=>p.y);
+  const x0 = clamp(Math.floor(Math.min.apply(null,xs)),0,w-1), x1 = clamp(Math.ceil(Math.max.apply(null,xs)),0,w-1);
+  const y0 = clamp(Math.floor(Math.min.apply(null,ys)),0,h-1), y1 = clamp(Math.ceil(Math.max.apply(null,ys)),0,h-1);
+  for(let y=y0;y<=y1;y++) for(let xx=x0;xx<=x1;xx++)
+    if(inside(xx, y)){ mask[y*w+xx] = 1; count++; }
+  const mc = mkCanvas(w,h), mx = mc.getContext("2d");
+  const mid = mx.createImageData(w,h), md = mid.data;
+  for(let i=0;i<w*h;i++){ md[i*4]=md[i*4+1]=md[i*4+2]=255; md[i*4+3]=mask[i]*255; }
+  mx.putImageData(mid,0,0);
+  return { mask, maskCanvas: mc, quad: quadRender, count };
+}
+function detectWall(seedAx, seedAy){
+  // tolerances are squared-colour-distance budgets (sum of channel squares)
+  let res = floodFillWall(seedAx, seedAy, 64*64, 30*30);
+  if(!res) return null;
+  const total = state.aW * state.aH;
+  if(res.count > total * 0.55){
+    // likely leaked into neighbouring surfaces — retry strict, keep the tighter result
+    const strict = floodFillWall(seedAx, seedAy, 42*42, 20*20);
+    if(strict && strict.count < res.count) res = strict;
+    if(res.count > total * 0.55) res = quadMaskFallback(res.quad);
+  }
+  return res;
+}
+function maskHit(wall, ax, ay){
+  if(ax<0||ay<0||ax>=state.aW||ay>=state.aH) return false;
+  return wall.maskData[ay*state.aW+ax] === 1;
+}
+
+/* ---------------- homography warp ---------------- */
+function homography(quad){
+  // maps unit square (0,0)(1,0)(1,1)(0,1) -> quad TL TR BR BL
+  const src=[[0,0],[1,0],[1,1],[0,1]];
+  const A=[], b=[];
+  for(let i=0;i<4;i++){
+    const [sx,sy]=src[i], dx=quad[i].x, dy=quad[i].y;
+    A.push([sx,sy,1,0,0,0,-dx*sx,-dx*sy]); b.push(dx);
+    A.push([0,0,0,sx,sy,1,-dy*sx,-dy*sy]); b.push(dy);
+  }
+  // gaussian elimination 8x8
+  const n=8;
+  for(let col=0,row=0; col<n && row<n; col++,row++){
+    let piv=row;
+    for(let r=row;r<n;r++) if(Math.abs(A[r][col])>Math.abs(A[piv][col])) piv=r;
+    if(Math.abs(A[piv][col])<1e-10){ A[piv][col]=1e-10; }
+    [A[piv],A[row]]=[A[row],A[piv]]; [b[piv],b[row]]=[b[row],b[piv]];
+    for(let r=0;r<n;r++){
+      if(r===row) continue;
+      const f=A[r][col]/A[row][col];
+      for(let cc=col;cc<n;cc++) A[r][cc]-=f*A[row][cc];
+      b[r]-=f*b[row];
+    }
+  }
+  const h=b.map((v,i)=> v/A[i][i]);
+  return function(u,v){
+    const d = h[6]*u + h[7]*v + 1;
+    return [ (h[0]*u + h[1]*v + h[2]) / d, (h[3]*u + h[4]*v + h[5]) / d ];
+  };
+}
+function triTransform(s, d){
+  const [x0,y0]=s[0],[x1,y1]=s[1],[x2,y2]=s[2];
+  const [u0,v0]=d[0],[u1,v1]=d[1],[u2,v2]=d[2];
+  const den = x0*(y1-y2) + x1*(y2-y0) + x2*(y0-y1);
+  if(Math.abs(den) < 1e-9) return null;
+  const a  = (u0*(y1-y2) + u1*(y2-y0) + u2*(y0-y1)) / den;
+  const bq = (u0*(x2-x1) + u1*(x0-x2) + u2*(x1-x0)) / den;
+  const c  = (u0*(x1*y2-x2*y1) + u1*(x2*y0-x0*y2) + u2*(x0*y1-x1*y0)) / den;
+  const dd = (v0*(y1-y2) + v1*(y2-y0) + v2*(y0-y1)) / den;
+  const e  = (v0*(x2-x1) + v1*(x0-x2) + v2*(x1-x0)) / den;
+  const f  = (v0*(x1*y2-x2*y1) + v1*(x2*y0-x0*y2) + v2*(x0*y1-x1*y0)) / den;
+  return [a, dd, bq, e, c, f]; // setTransform(a,b,c,d,e,f)
+}
+function drawTri(ctx, img, s, d){
+  const t = triTransform(s, d);
+  if(!t) return;
+  ctx.save();
+  ctx.beginPath();
+  ctx.moveTo(d[0][0], d[0][1]); ctx.lineTo(d[1][0], d[1][1]); ctx.lineTo(d[2][0], d[2][1]);
+  ctx.closePath(); ctx.clip();
+  ctx.setTransform(t[0], t[1], t[2], t[3], t[4], t[5]);
+  ctx.drawImage(img, 0, 0);
+  ctx.restore();
+}
+function warpInto(ctx, patCanvas, quad){
+  const H = homography(quad);
+  const pw = patCanvas.width, ph = patCanvas.height;
+  const topLen = Math.hypot(quad[1].x-quad[0].x, quad[1].y-quad[0].y);
+  const lefLen = Math.hypot(quad[3].x-quad[0].x, quad[3].y-quad[0].y);
+  const cols = clamp(Math.round(topLen/110), 6, 22);
+  const rows = clamp(Math.round(lefLen/110), 6, 22);
+  const P = [], S = [];
+  for(let j=0;j<=rows;j++){ P.push([]); S.push([]);
+    for(let i=0;i<=cols;i++){
+      P[j].push(H(i/cols, j/rows));
+      S[j].push([i/cols*pw, j/rows*ph]);
+    }
+  }
+  for(let j=0;j<rows;j++) for(let i=0;i<cols;i++){
+    drawTri(ctx, patCanvas, [S[j][i], S[j][i+1], S[j+1][i]],   [P[j][i], P[j][i+1], P[j+1][i]]);
+    drawTri(ctx, patCanvas, [S[j][i+1], S[j+1][i+1], S[j+1][i]], [P[j][i+1], P[j+1][i+1], P[j+1][i]]);
+  }
+}
+
+/* ---------------- wall objects & pattern tiling ---------------- */
+function activeWallObj(){ return state.activeWall >= 0 ? state.walls[state.activeWall] : null; }
+function quadAvgW(q){ return (Math.hypot(q[1].x-q[0].x,q[1].y-q[0].y) + Math.hypot(q[2].x-q[3].x,q[2].y-q[3].y)) / 2; }
+function quadAvgH(q){ return (Math.hypot(q[3].x-q[0].x,q[3].y-q[0].y) + Math.hypot(q[2].x-q[1].x,q[2].y-q[1].y)) / 2; }
+
+function buildPatternCanvas(wall, outW, outH){
+  const pat = patternById(wall.designId);
+  if(!pat) return null;
+  const repWm = Math.max(0.05, wall.repeatW / 100);
+  const repHm = Math.max(0.05, (wall.repeatH || wall.repeatW) / 100);
+  const sizeF = 100 / wall.sizePct;
+  const tilesX = wall.widthM / repWm * sizeF;
+  const wallHm = wall.widthM * (quadAvgH(wall.quad) / Math.max(1, quadAvgW(wall.quad)));
+  const tilesY = wallHm / repHm * sizeF;
+  let tilePx = 240;
+  let cw = tilesX * tilePx, ch = tilesY * tilePx * (repHm / repWm);
+  const cap = 2300;
+  if(cw > cap || ch > cap){ const f = cap / Math.max(cw, ch); cw *= f; ch *= f; tilePx *= f; }
+  cw = clamp(Math.round(cw), 32, cap); ch = clamp(Math.round(ch), 32, cap);
+  const tileH = tilePx * (repHm / repWm);
+  const c = mkCanvas(cw, ch), x = c.getContext("2d");
+  for(let ty=0; ty*tileH < ch + tileH; ty++)
+    for(let tx=0; tx*tilePx < cw + tilePx; tx++)
+      x.drawImage(pat.img, tx*tilePx, ty*tileH, tilePx, tileH);
+  return c;
+}
+function wallShadeCanvas(wall, lumCanvas, aK){
+  // bounding box of mask, in analysis coords; aK maps analysis -> target px
+  const aW = state.aW, aH = state.aH;
+  let minX=aW, minY=aH, maxX=0, maxY=0;
+  for(let y=0;y<aH;y+=3) for(let xx=0;xx<aW;xx+=3)
+    if(wall.maskData[y*aW+xx]){ if(xx<minX)minX=xx; if(xx>maxX)maxX=xx; if(y<minY)minY=y; if(y>maxY)maxY=y; }
+  if(maxX<=minX) return null;
+  const mW = maxX-minX+1, mH = maxY-minY+1;
+  const bx = Math.floor(minX*aK), by = Math.floor(minY*aK);
+  const bw = Math.max(2, Math.ceil(mW*aK)), bh = Math.max(2, Math.ceil(mH*aK));
+  const c = mkCanvas(bw, bh), x = c.getContext("2d");
+  x.drawImage(lumCanvas, bx, by, bw, bh, 0, 0, bw, bh);
+  x.globalCompositeOperation = "destination-in";
+  x.drawImage(wall.maskCanvas, minX, minY, mW, mH, 0, 0, bw, bh);
+  const id = x.getImageData(0,0,bw,bh), d = id.data;
+  let sum=0, cnt=0;
+  for(let i=0;i<d.length;i+=4) if(d[i+3]>100){ sum += d[i]; cnt++; }
+  const avg = cnt ? sum/cnt : 128;
+  for(let i=0;i<d.length;i+=4){
+    if(d[i+3]===0) continue;
+    let v = d[i] / Math.max(20, avg);
+    v = clamp(v, 0.38, 1.22);
+    const g = Math.round(v*255);
+    d[i]=d[i+1]=d[i+2]=g;
+  }
+  x.putImageData(id,0,0);
+  return { canvas: c, x: bx, y: by };
+}
+
+/* ---------------- composite render ---------------- */
+function composite(W, H, roomSource, lumCanvas, scaleK){
+  const out = mkCanvas(W,H), ctx = out.getContext("2d");
+  ctx.drawImage(roomSource, 0, 0, W, H);
+  for(const wall of state.walls){
+    const pat = buildPatternCanvas(wall, W, H);
+    if(!pat) continue;
+    const layer = mkCanvas(W,H), lx = layer.getContext("2d");
+    const q = wall.quad.map(p=>({ x:p.x*scaleK, y:p.y*scaleK }));
+    lx.save();
+    lx.beginPath();
+    lx.moveTo(q[0].x,q[0].y); lx.lineTo(q[1].x,q[1].y); lx.lineTo(q[2].x,q[2].y); lx.lineTo(q[3].x,q[3].y);
+    lx.closePath(); lx.clip();
+    warpInto(lx, pat, q);
+    lx.restore();
+    lx.globalCompositeOperation = "destination-in";
+    lx.drawImage(wall.maskCanvas, 0, 0, W, H);
+    ctx.globalAlpha = state.intensity;
+    ctx.globalCompositeOperation = "source-over";
+    ctx.drawImage(layer, 0, 0);
+    ctx.globalAlpha = 1;
+    if(state.light > 0){
+      const sh = wallShadeCanvas(wall, lumCanvas, W / state.aW);
+      if(sh){
+        ctx.globalCompositeOperation = "multiply";
+        ctx.globalAlpha = state.light;
+        ctx.drawImage(sh.canvas, sh.x, sh.y);
+        ctx.globalAlpha = 1;
+        ctx.globalCompositeOperation = "source-over";
+      }
+    }
+  }
+  return out;
+}
+function scheduleRender(){
+  if(state.renderQueued) return;
+  state.renderQueued = true;
+  requestAnimationFrame(()=>{ state.renderQueued = false; drawDisplay(); });
+}
+function drawDisplay(){
+  if(!state.roomImg){ drawEmpty(); return; }
+  const after = composite(state.RW, state.RH, state.base, state.lum, 1);
+  vctx.setTransform(1,0,0,1,0,0);
+  vctx.globalCompositeOperation = "source-over";
+  vctx.globalAlpha = 1;
+  vctx.drawImage(after, 0, 0);
+  if(state.compareOn){
+    const sx = Math.round(state.compareX * state.RW);
+    vctx.save();
+    vctx.beginPath(); vctx.rect(0, 0, sx, state.RH); vctx.clip();
+    vctx.drawImage(state.base, 0, 0);
+    vctx.restore();
+    positionCompareHandle();
+  }
+  drawOverlays();
+}
+function drawEmpty(){
+  vctx.setTransform(1,0,0,1,0,0);
+  const grd = vctx.createLinearGradient(0,0,0,view.height);
+  grd.addColorStop(0,"#e6ddca"); grd.addColorStop(1,"#d8cdb4");
+  vctx.fillStyle = grd; vctx.fillRect(0,0,view.width,view.height);
+  vctx.fillStyle = "rgba(42,39,33,.65)";
+  vctx.font = "500 30px Jost, sans-serif"; vctx.textAlign = "center";
+  vctx.fillText("Upload a room photo to begin", view.width/2, view.height/2 - 8);
+  vctx.font = "400 21px Jost, sans-serif"; vctx.fillStyle = "rgba(42,39,33,.5)";
+  vctx.fillText("or tap “Sample room” — then tap a wall", view.width/2, view.height/2 + 30);
+}
+function drawOverlays(){
+  if(!state.roomImg) return;
+  const w = activeWallObj();
+  state.walls.forEach((wl, i)=>{
+    if(wl !== w) return;
+    if(!state.cornersMode){
+      // subtle outline of the active wall
+      vctx.beginPath();
+      wl.quad.forEach((p,j)=> j ? vctx.lineTo(p.x,p.y) : vctx.moveTo(p.x,p.y));
+      vctx.closePath();
+      vctx.strokeStyle = "rgba(165,129,63,.55)"; vctx.lineWidth = 2; vctx.setLineDash([9,7]);
+      vctx.stroke(); vctx.setLineDash([]);
+    }
+  });
+  if(state.cornersMode && w){
+    vctx.beginPath();
+    w.quad.forEach((p,j)=> j ? vctx.lineTo(p.x,p.y) : vctx.moveTo(p.x,p.y));
+    vctx.closePath();
+    vctx.strokeStyle = "#a5813f"; vctx.lineWidth = 2.5; vctx.stroke();
+    vctx.fillStyle = "rgba(165,129,63,.18)"; vctx.fill();
+    w.quad.forEach(p=>{
+      vctx.beginPath(); vctx.arc(p.x, p.y, 15, 0, Math.PI*2);
+      vctx.fillStyle = "#fff"; vctx.fill();
+      vctx.lineWidth = 3.5; vctx.strokeStyle = "#a5813f"; vctx.stroke();
+      vctx.beginPath(); vctx.arc(p.x, p.y, 5, 0, Math.PI*2);
+      vctx.fillStyle = "#a5813f"; vctx.fill();
+    });
+  }
+  if(state.redoArm){
+    vctx.fillStyle = "rgba(24,26,20,.45)"; vctx.fillRect(0,0,state.RW,state.RH);
+    vctx.fillStyle = "#fff"; vctx.font = "600 26px Jost, sans-serif"; vctx.textAlign = "center";
+    vctx.fillText("Tap the wall to re-read its outline", state.RW/2, 52);
+  }
+}
+function positionCompareHandle(){
+  const h = $("cmpHandle");
+  h.style.left = (state.compareX * 100) + "%";
+}
+
+/* ---------------- walls: create / select / chips ---------------- */
+function syncAdjustInputs(){
+  const w = activeWallObj();
+  $("inWallW").value = w ? w.widthM : 3.6;
+  $("inRepW").value = w ? w.repeatW : 53;
+  $("inRepH").value = w && w.repeatH ? w.repeatH : "";
+  $("rgSize").value = w ? w.sizePct : 100;
+  $("valSize").textContent = (w ? w.sizePct : 100) + "%";
+  const dis = !w;
+  ["inWallW","inRepW","inRepH","rgSize"].forEach(id=> $(id).disabled = dis);
+  $("btnDeleteWall").disabled = dis;
+  $("btnRedoWall").disabled = dis;
+}
+function renderWallChips(){
+  const box = $("wallChips");
+  box.innerHTML = "";
+  state.walls.forEach((w, i)=>{
+    const b = document.createElement("button");
+    b.className = "wchip" + (i === state.activeWall ? " sel" : "");
+    b.textContent = w.name;
+    b.addEventListener("click", ()=>{ state.activeWall = i; syncAdjustInputs(); renderWallChips(); scheduleRender(); });
+    box.appendChild(b);
+  });
+  syncAdjustInputs();
+}
+function addWallFromTap(rx, ry){
+  const ax = clamp(Math.round(rx * state.aW / state.RW), 0, state.aW - 1);
+  const ay = clamp(Math.round(ry * state.aH / state.RH), 0, state.aH - 1);
+  const res = detectWall(ax, ay);
+  if(!res){
+    toast("That spot didn't read as a wall — try tapping the middle of the wall.");
+    return;
+  }
+  const wall = {
+    name: "Wall " + (++state.wallSeq),
+    maskData: res.mask, maskCanvas: res.maskCanvas, quad: res.quad,
+    designId: state.currentDesign, widthM: 3.6, repeatW: 53, repeatH: 0, sizePct: 100,
+  };
+  state.walls.push(wall);
+  state.activeWall = state.walls.length - 1;
+  state.redoArm = false; $("btnRedoWall").classList.remove("armed");
+  renderWallChips();
+  scheduleRender();
+  hint("Looks good — flip through designs below, or tap another wall.");
+  toast(wall.name + " papered. Tap another wall to add it too.");
+}
+function handleTap(rx, ry){
+  if(!state.roomImg) return;
+  if(state.redoArm && activeWallObj()){
+    const ax = clamp(Math.round(rx * state.aW / state.RW), 0, state.aW - 1);
+    const ay = clamp(Math.round(ry * state.aH / state.RH), 0, state.aH - 1);
+    const res = detectWall(ax, ay);
+    if(res){
+      const w = activeWallObj();
+      w.maskData = res.mask; w.maskCanvas = res.maskCanvas; w.quad = res.quad;
+      toast(w.name + " outline updated.");
+    } else toast("That spot didn't read as a wall — try again.");
+    state.redoArm = false; $("btnRedoWall").classList.remove("armed");
+    scheduleRender();
+    return;
+  }
+  const ax = clamp(Math.round(rx * state.aW / state.RW), 0, state.aW - 1);
+  const ay = clamp(Math.round(ry * state.aH / state.RH), 0, state.aH - 1);
+  for(let i = state.walls.length - 1; i >= 0; i--){
+    if(maskHit(state.walls[i], ax, ay)){
+      if(i !== state.activeWall){
+        state.activeWall = i; renderWallChips(); scheduleRender();
+        toast(state.walls[i].name + " selected — pick a design below.");
+      }
+      return;
+    }
+  }
+  addWallFromTap(rx, ry);
+}
+
+/* ---------------- pointer interaction ---------------- */
+let dragHandle = -1, dragMoved = false, downPos = null, compareDrag = false;
+function evtPos(e){
+  const r = view.getBoundingClientRect();
+  return { x: (e.clientX - r.left) * view.width / r.width, y: (e.clientY - r.top) * view.height / r.height, cssX: e.clientX - r.left, cssW: r.width };
+}
+view.addEventListener("pointerdown", e=>{
+  if(!state.roomImg) return;
+  const p = evtPos(e);
+  view.setPointerCapture(e.pointerId);
+  downPos = p; dragMoved = false;
+  if(state.compareOn){ compareDrag = true; setCompareFromEvent(e); return; }
+  if(state.cornersMode){
+    const w = activeWallObj();
+    if(w){
+      const hitR = Math.max(30, view.width * 0.035);
+      dragHandle = w.quad.findIndex(q => Math.hypot(q.x - p.x, q.y - p.y) < hitR);
+    }
+  }
+});
+view.addEventListener("pointermove", e=>{
+  if(compareDrag){ setCompareFromEvent(e); return; }
+  if(dragHandle >= 0){
+    const p = evtPos(e), w = activeWallObj();
+    if(w){
+      w.quad[dragHandle] = { x: clamp(p.x, 0, state.RW), y: clamp(p.y, 0, state.RH) };
+      dragMoved = true;
+      scheduleRender();
+    }
+    return;
+  }
+  if(downPos){
+    const p = evtPos(e);
+    if(Math.hypot(p.x - downPos.x, p.y - downPos.y) > 7) dragMoved = true;
+  }
+});
+view.addEventListener("pointerup", e=>{
+  if(compareDrag){ compareDrag = false; downPos = null; return; }
+  const wasHandle = dragHandle >= 0;
+  dragHandle = -1;
+  if(!wasHandle && downPos && !dragMoved && !state.cornersMode){
+    const p = evtPos(e);
+    handleTap(p.x, p.y);
+  }
+  downPos = null;
+});
+view.addEventListener("pointercancel", ()=>{ dragHandle = -1; downPos = null; compareDrag = false; });
+function setCompareFromEvent(e){
+  const p = evtPos(e);
+  state.compareX = clamp(p.x / state.RW, 0.02, 0.98);
+  $("rgCompare").value = Math.round(state.compareX * 100);
+  scheduleRender();
+}
+
+/* ---------------- download (full resolution) ---------------- */
+async function downloadPNG(){
+  if(!state.roomImg){ toast("Add a room photo first."); return; }
+  if(!state.walls.length){ toast("Tap a wall first so there's a preview to download."); return; }
+  const btn = $("btnDownload");
+  const old = btn.innerHTML;
+  btn.innerHTML = "Preparing full-resolution preview…"; btn.disabled = true;
+  try{
+    await new Promise(r => setTimeout(r, 30));
+    const cap = 4200;
+    const s = Math.min(1, cap / Math.max(state.natW, state.natH));
+    const W = Math.round(state.natW * s), H = Math.round(state.natH * s);
+    // full-res luminance
+    const lumF = mkCanvas(W, H), lx = lumF.getContext("2d");
+    lx.drawImage(state.roomImg, 0, 0, W, H);
+    const id = lx.getImageData(0,0,W,H), d = id.data;
+    for(let i=0;i<d.length;i+=4){ const g = 0.299*d[i] + 0.587*d[i+1] + 0.114*d[i+2]; d[i]=d[i+1]=d[i+2]=g; }
+    lx.putImageData(id,0,0);
+    const out = composite(W, H, state.roomImg, lumF, W / state.RW);
+    const a = document.createElement("a");
+    a.download = "prime-design-preview.png";
+    a.href = out.toDataURL("image/png");
+    document.body.appendChild(a); a.click(); a.remove();
+    toast("Preview downloaded — ready to send to your client.");
+  }catch(err){
+    toast("Download ran into a problem — try a smaller photo.");
+  }
+  btn.innerHTML = old; btn.disabled = false;
+}
+
+/* ---------------- UI wiring ---------------- */
+function pickFile(){
+  return new Promise(res=>{
+    const i = document.createElement("input");
+    i.type = "file"; i.accept = "image/*";
+    i.addEventListener("change", ()=> res(i.files && i.files[0] ? i.files[0] : null));
+    i.click();
+  });
+}
+$("btnUploadRoom").addEventListener("click", async ()=>{
+  const f = await pickFile();
+  if(!f) return;
+  try{
+    const img = await fileToImage(f);
+    setRoom(img, f.name.replace(/\.[^.]+$/, ""));
+    hint("Now tap the wall you want to paper.");
+    toast("Room loaded — tap a wall to paper it.");
+  }catch(err){ toast("That photo couldn't be read — try another image."); }
+});
+$("btnUploadDesign").addEventListener("click", async ()=>{
+  const f = await pickFile();
+  if(!f) return;
+  try{
+    const img = await fileToImage(f);
+    const p = addPattern(f.name.replace(/\.[^.]+$/, "").slice(0, 26) || "Design", img);
+    applyDesign(p.id);
+    toast("Design added to the library.");
+  }catch(err){ toast("That image couldn't be read — try another file."); }
+});
+function loadSampleRoom(autoWall){
+  const c = buildSampleRoom();
+  const img = new Image();
+  img.onload = ()=>{
+    setRoom(img, "sample room");
+    if(autoWall){
+      addWallFromTap(500 * state.RW / 1600, 300 * state.RH / 1150);
+      hint("Sample preview — flip designs below, or tap a side wall.");
+    } else {
+      hint("Sample room loaded — tap a wall to paper it.");
+    }
+  };
+  img.src = c.toDataURL("image/png");
+}
+$("btnSampleRoom").addEventListener("click", ()=> loadSampleRoom(false));
+
+// drag & drop room photo onto the stage
+["dragenter","dragover"].forEach(ev => stage.addEventListener(ev, e=>{ e.preventDefault(); stage.classList.add("dragging"); }));
+["dragleave","drop"].forEach(ev => stage.addEventListener(ev, e=>{ e.preventDefault(); stage.classList.remove("dragging"); }));
+stage.addEventListener("drop", async e=>{
+  const f = e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files[0];
+  if(!f || !/^image\//.test(f.type)) return;
+  try{
+    const img = await fileToImage(f);
+    setRoom(img, f.name.replace(/\.[^.]+$/, ""));
+    hint("Now tap the wall you want to paper.");
+    toast("Room loaded — tap a wall to paper it.");
+  }catch(err){ toast("That photo couldn't be read."); }
+});
+
+// walls panel
+$("btnRedoWall").addEventListener("click", ()=>{
+  if(!activeWallObj()) return;
+  state.redoArm = !state.redoArm;
+  $("btnRedoWall").classList.toggle("armed", state.redoArm);
+  hint(state.redoArm ? "Tap the wall to re-read its outline." : "");
+  scheduleRender();
+});
+$("btnDeleteWall").addEventListener("click", ()=>{
+  if(state.activeWall < 0) return;
+  const nm = state.walls[state.activeWall].name;
+  state.walls.splice(state.activeWall, 1);
+  state.activeWall = state.walls.length - 1;
+  renderWallChips(); scheduleRender();
+  toast(nm + " removed.");
+});
+$("swCorners").addEventListener("change", e=>{
+  state.cornersMode = e.target.checked;
+  if(state.cornersMode && !activeWallObj()) toast("Tap a wall first, then drag its corners.");
+  hint(state.cornersMode ? "Drag the corner dots to fine-tune the outline." : "Tap a wall to paper it — tap another wall to add it too.");
+  scheduleRender();
+});
+
+// adjust controls
+function bindNum(id, key, parse){
+  $(id).addEventListener("input", e=>{
+    const w = activeWallObj(); if(!w) return;
+    const v = parse(e.target.value);
+    if(v !== null && isFinite(v) && v > 0){ w[key] = v; scheduleRender(); }
+  });
+}
+bindNum("inWallW", "widthM", v => parseFloat(v));
+bindNum("inRepW", "repeatW", v => parseFloat(v));
+$("inRepH").addEventListener("input", e=>{
+  const w = activeWallObj(); if(!w) return;
+  const v = parseFloat(e.target.value);
+  w.repeatH = isFinite(v) && v > 0 ? v : 0;
+  scheduleRender();
+});
+$("rgSize").addEventListener("input", e=>{
+  const w = activeWallObj(); if(!w) return;
+  w.sizePct = parseInt(e.target.value, 10);
+  $("valSize").textContent = w.sizePct + "%";
+  scheduleRender();
+});
+$("rgLight").addEventListener("input", e=>{
+  state.light = parseInt(e.target.value, 10) / 100;
+  $("valLight").textContent = e.target.value + "%";
+  scheduleRender();
+});
+$("rgInt").addEventListener("input", e=>{
+  state.intensity = parseInt(e.target.value, 10) / 100;
+  $("valInt").textContent = e.target.value + "%";
+  scheduleRender();
+});
+
+// compare & download
+$("swCompare").addEventListener("change", e=>{
+  state.compareOn = e.target.checked;
+  stage.classList.toggle("compare-on", state.compareOn);
+  $("cmpField").style.display = state.compareOn ? "block" : "none";
+  if(state.compareOn && !state.walls.length) toast("Paper a wall first — then compare before & after.");
+  if(state.compareOn) positionCompareHandle();
+  scheduleRender();
+});
+$("rgCompare").addEventListener("input", e=>{
+  state.compareX = parseInt(e.target.value, 10) / 100;
+  scheduleRender();
+});
+$("cmpHandle").addEventListener("pointerdown", e=>{
+  e.stopPropagation();
+  compareDrag = true;
+  const move = ev => setCompareFromEvent(ev);
+  const up = ()=>{ compareDrag = false; window.removeEventListener("pointermove", move); window.removeEventListener("pointerup", up); };
+  window.addEventListener("pointermove", move);
+  window.addEventListener("pointerup", up);
+});
+$("btnDownload").addEventListener("click", downloadPNG);
+
+/* ---------------- responsive step order ----------------
+   Desktop: design library sits under the preview. On phone widths the
+   steps must read 1 → 2 → 3 → 4 → 5, so the library card moves into
+   the panel, right after Step 1. */
+const mqMobile = window.matchMedia("(max-width: 1020px)");
+function placeLibrary(){
+  const lib = $("library");
+  if(mqMobile.matches) $("stepRoom").after(lib);
+  else $("stageCol").appendChild(lib);
+}
+if(mqMobile.addEventListener) mqMobile.addEventListener("change", placeLibrary);
+else if(mqMobile.addListener) mqMobile.addListener(placeLibrary);
+placeLibrary();
+
+/* ---------------- init ---------------- */
+makeSamples();
+renderStrip();
+syncAdjustInputs();
+drawEmpty();
+hint("Loading the sample room…");
+loadSampleRoom(true);
+</script>
+</body>
+</html>
