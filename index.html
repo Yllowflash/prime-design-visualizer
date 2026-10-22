@@ -188,7 +188,7 @@
 
         <div class="step" id="stepWalls">
           <div class="step-head"><span class="step-num">3</span><h2>Tap the wall</h2></div>
-          <p class="sub" id="wallSub">Tap any wall in the photo and the design is applied to the whole wall — around furniture, in the room's own light. Tap another wall to paper it too.</p>
+          <p class="sub" id="wallSub">Tap any wall in the photo. AI reads the wall surface itself, so picture frames, mirrors, shelves and furniture sitting on the wall stay in front of the new paper, in the room's own light. Tap another wall to paper it too.</p>
           <div class="body">
             <div class="wallchips" id="wallChips"></div>
             <div class="btnrow">
@@ -200,6 +200,7 @@
               <input type="checkbox" class="switch" id="swCorners" />
             </div>
             <p class="hint" style="font-size:12.5px;color:var(--ink-soft);">If an outline misses an edge, turn this on and drag the four corner dots into place.</p>
+            <p class="hint" id="aiStatus" style="font-size:12.5px;color:var(--ink-soft);margin-top:8px;">AI wall detection loads on your first tap and runs on this device — only the model downloads (once), never your photos.</p>
           </div>
         </div>
 
@@ -301,6 +302,11 @@
 
     <div class="toast" id="toast"></div>
 
+<!-- On-device AI segmentation (transformers.js). Loaded async so the app
+     never waits on it; if the CDN is unreachable the visualizer simply
+     falls back to its built-in tap detection. The model itself runs
+     100% in the browser — photos are never uploaded anywhere. -->
+<script async src="https://cdn.jsdelivr.net/npm/@xenova/transformers@2.17.2/dist/transformers.min.js" onerror="window.__aiLibFailed=1"></script>
 <script>
 "use strict";
 /* ============================================================
@@ -590,6 +596,7 @@ function setRoom(img, name){
   ax.drawImage(img, 0, 0, state.aW, state.aH);
   state.aData = ax.getImageData(0,0,state.aW,state.aH).data;
   edgeBarrier = null;
+  ai.maskCache = null;
   state.walls = []; state.activeWall = -1;
   view.width = state.RW; view.height = state.RH;
   fitStage();
@@ -660,6 +667,12 @@ function floodFillWall(seedAx, seedAy, seedTol, stepTol){
     }
   }
   if(count < w*h*0.012) return null;
+  return finishMask(mask, count);
+}
+/* Shared finish for any wall mask (flood fill or AI): softly feathered
+   mask canvas + a perspective quad from the mask's extreme points. */
+function finishMask(mask, count){
+  const w = state.aW, h = state.aH;
   // mask canvas (analysis res), softly feathered
   const mc = mkCanvas(w,h), mx = mc.getContext("2d");
   const mid = mx.createImageData(w,h), md = mid.data;
@@ -709,7 +722,7 @@ function quadMaskFallback(quadRender){
   mx.putImageData(mid,0,0);
   return { mask, maskCanvas: mc, quad: quadRender, count };
 }
-function detectWall(seedAx, seedAy){
+function detectWallFlood(seedAx, seedAy){
   // tolerances are squared-colour-distance budgets (sum of channel squares)
   let res = floodFillWall(seedAx, seedAy, 64*64, 30*30);
   if(!res) return null;
@@ -725,6 +738,187 @@ function detectWall(seedAx, seedAy){
 function maskHit(wall, ax, ay){
   if(ax<0||ay<0||ax>=state.aW||ay>=state.aH) return false;
   return wall.maskData[ay*state.aW+ax] === 1;
+}
+
+/* ---------------- AI wall segmentation (on-device) ----------------
+   Segformer trained on ADE20K, run in the browser via transformers.js.
+   ADE20K separates "wall" from picture/frame, mirror, shelf, door,
+   window and furniture — exactly what the flood fill cannot do — so
+   objects ON the wall stay as original photo pixels in front of the
+   new paper. The model runs 100% on this device; only the model files
+   download (once, then the browser caches them). Photos never leave
+   the device. Any failure falls back to the flood-fill detector. */
+const ai = { status: "idle", pipe: null, loadPromise: null, maskCache: null, notified: false, failedAt: 0 };
+const AI_MODEL = "Xenova/segformer-b0-finetuned-ade-512-512";
+function setAiStatus(txt){ const el = $("aiStatus"); if(el) el.textContent = txt; }
+function waitForTransformers(timeoutMs){
+  return new Promise(res=>{
+    const t0 = Date.now();
+    (function poll(){
+      if(window.Transformers && typeof window.Transformers.pipeline === "function"){ res(window.Transformers); return; }
+      if(window.__aiLibFailed || Date.now() - t0 > timeoutMs){ res(null); return; }
+      setTimeout(poll, 250);
+    })();
+  });
+}
+function ensureAI(){
+  if(ai.status === "ready") return Promise.resolve(ai.pipe);
+  if(ai.loadPromise) return ai.loadPromise;
+  if(ai.status === "failed" && Date.now() - ai.failedAt < 60000) return Promise.resolve(null);
+  ai.status = "loading";
+  setAiStatus("AI wall detection: loading the model — a one-time download, then it runs on this device.");
+  ai.loadPromise = (async ()=>{
+    try{
+      const T = await waitForTransformers(20000);
+      if(!T) throw new Error("transformers.js unavailable");
+      try{ T.env.allowLocalModels = false; }catch(e){}
+      const pipe = await T.pipeline("image-segmentation", AI_MODEL, {
+        progress_callback: info=>{
+          if(info && info.status === "progress" && info.total > 0){
+            const pct = Math.max(1, Math.min(99, Math.round(info.loaded / info.total * 100)));
+            hint("Loading AI wall detection… " + pct + "% — one-time download, your photos stay on this device.");
+            setAiStatus("AI wall detection: downloading the model… " + pct + "%");
+          }
+        }
+      });
+      ai.pipe = pipe; ai.status = "ready"; ai.loadPromise = null;
+      setAiStatus("AI wall detection: on — frames, mirrors, shelves and furniture on the wall stay in front of the paper.");
+      return pipe;
+    }catch(err){
+      ai.status = "failed"; ai.pipe = null; ai.loadPromise = null; ai.failedAt = Date.now();
+      setAiStatus("AI wall detection: unavailable here — standard tap detection and corner refine are active.");
+      return null;
+    }
+  })();
+  return ai.loadPromise;
+}
+/* One 3x3 morphological pass (dilate=true grows, false shrinks). */
+function morphMask(mask, w, h, dilate){
+  const out = new Uint8Array(w*h);
+  for(let y=0;y<h;y++) for(let xx=0;xx<w;xx++){
+    let v = dilate ? 0 : 1;
+    for(let dy=-1;dy<=1 && (dilate ? !v : v);dy++) for(let dx=-1;dx<=1;dx++){
+      const nx=xx+dx, ny=y+dy;
+      const nv = (nx<0||ny<0||nx>=w||ny>=h) ? 0 : mask[ny*w+nx];
+      if(dilate){ if(nv){ v=1; break; } } else if(!nv){ v=0; break; }
+    }
+    out[y*w+xx]=v;
+  }
+  return out;
+}
+/* Close (fill pinholes & hairline gaps) then open (drop specks). */
+function cleanMask(mask, w, h){
+  let m = morphMask(mask, w, h, true);
+  m = morphMask(m, w, h, false);
+  m = morphMask(m, w, h, false);
+  m = morphMask(m, w, h, true);
+  return m;
+}
+/* Segment the current room once and cache the cleaned wall-class mask
+   (analysis resolution). Returns null when AI is unavailable or the
+   photo contains nothing the model calls a wall. */
+async function aiWallMask(){
+  if(ai.maskCache) return ai.maskCache;
+  const pipe = await ensureAI();
+  if(!pipe) return null;
+  try{
+    const w = state.aW, h = state.aH;
+    const c = mkCanvas(w, h);
+    c.getContext("2d").drawImage(state.roomImg, 0, 0, w, h);
+    const out = await pipe(c.toDataURL("image/jpeg", 0.92));
+    const wall = new Uint8Array(w*h);
+    let found = false;
+    for(const seg of out || []){
+      if(!seg || seg.label !== "wall" || !seg.mask || !seg.mask.data) continue;
+      found = true;
+      const mw = seg.mask.width, mh = seg.mask.height, md = seg.mask.data;
+      if(mw === w && mh === h){
+        for(let i=0;i<w*h;i++) if(md[i] > 127) wall[i] = 1;
+      }else{
+        const mc = mkCanvas(mw, mh), mx = mc.getContext("2d");
+        const mid = mx.createImageData(mw, mh), mdd = mid.data;
+        for(let i=0;i<mw*mh;i++){ const v = md[i]; mdd[i*4]=mdd[i*4+1]=mdd[i*4+2]=v; mdd[i*4+3]=255; }
+        mx.putImageData(mid, 0, 0);
+        const sc = mkCanvas(w, h), sx = sc.getContext("2d");
+        sx.drawImage(mc, 0, 0, w, h);
+        const sd = sx.getImageData(0, 0, w, h).data;
+        for(let i=0;i<w*h;i++) if(sd[i*4] > 127) wall[i] = 1;
+      }
+    }
+    if(!found) return null;
+    ai.maskCache = cleanMask(wall, w, h);
+    return ai.maskCache;
+  }catch(err){
+    return null;
+  }
+}
+function bfsWall(wallMask, sx, sy, useBarrier){
+  const w = state.aW, h = state.aH;
+  const mask = new Uint8Array(w*h), seen = new Uint8Array(w*h);
+  const stack = [sy*w + sx];
+  seen[stack[0]] = 1; mask[stack[0]] = 1;
+  let count = 1;
+  while(stack.length){
+    const cur = stack.pop();
+    const cx = cur % w, cy = (cur / w) | 0;
+    const curEdge = useBarrier && edgeBarrier[cur];
+    for(let k=0;k<4;k++){
+      let nx=cx, ny=cy;
+      if(k===0) nx--; else if(k===1) nx++; else if(k===2) ny--; else ny++;
+      if(nx<0||ny<0||nx>=w||ny>=h) continue;
+      const ni = ny*w + nx;
+      if(seen[ni]) continue;
+      seen[ni] = 1;
+      if(useBarrier && (curEdge || edgeBarrier[ni])) continue;
+      if(wallMask[ni]){ mask[ni] = 1; count++; stack.push(ni); }
+    }
+  }
+  return { mask, count };
+}
+/* The wall surface connected to the tap. If the tap lands on an object
+   hanging on the wall (frame, mirror, shelf), the wall surrounding it
+   is used instead — the object itself is not part of the mask, so it
+   stays visible in front of the paper. Hard luminance edges split the
+   region at wall corners, unless that would shred the wall itself. */
+function aiComponent(wallMask, seedAx, seedAy){
+  const w = state.aW, h = state.aH, total = w * h;
+  if(!edgeBarrier) buildEdgeBarrier();
+  let sx = seedAx, sy = seedAy;
+  if(!wallMask[sy*w + sx]){
+    let fp = null;
+    const maxR = Math.round(Math.min(w, h) * 0.35);
+    for(let r=3; r<=maxR && !fp; r+=3){
+      const steps = Math.max(10, r);
+      for(let a=0; a<steps; a++){
+        const nx = Math.round(sx + r * Math.cos(a / steps * Math.PI * 2));
+        const ny = Math.round(sy + r * Math.sin(a / steps * Math.PI * 2));
+        if(nx<0||ny<0||nx>=w||ny>=h) continue;
+        if(wallMask[ny*w + nx]){ fp = [nx, ny]; break; }
+      }
+    }
+    if(!fp) return null;
+    sx = fp[0]; sy = fp[1];
+  }
+  const barred = bfsWall(wallMask, sx, sy, true);
+  const free = bfsWall(wallMask, sx, sy, false);
+  const pick = barred.count >= free.count * 0.6 ? barred : free;
+  if(pick.count < total * 0.012) return null;
+  if(pick.count > total * 0.55) return null;  // never paper most of the photo on a guess
+  return finishMask(pick.mask, pick.count);
+}
+/* Detection entry point: AI first, flood fill as the fallback. */
+async function detectWall(seedAx, seedAy){
+  const wallMask = await aiWallMask();
+  if(wallMask){
+    const comp = aiComponent(wallMask, seedAx, seedAy);
+    if(comp) return comp;
+  }
+  const res = detectWallFlood(seedAx, seedAy);
+  if(res && ai.status === "failed" && !ai.notified){
+    ai.notified = true;
+    toast("AI wall detection isn't available here — used standard detection. Corner refine is in Step 3.", 4200);
+  }
+  return res;
 }
 
 /* ---------------- homography warp ---------------- */
@@ -1099,13 +1293,38 @@ function renderWallChips(){
   });
   syncAdjustInputs();
 }
-function addWallFromTap(rx, ry){
+let detecting = false;
+async function addWallFromTap(rx, ry, opts){
+  if(detecting) return;
+  detecting = true;
   const ax = clamp(Math.round(rx * state.aW / state.RW), 0, state.aW - 1);
   const ay = clamp(Math.round(ry * state.aH / state.RH), 0, state.aH - 1);
-  const res = detectWall(ax, ay);
+  const skipAI = !!(opts && opts.skipAI);
+  if(!skipAI) hint(ai.status === "ready" ? "AI is reading the wall — frames and furniture stay in front…" : "Finding the wall…");
+  let res = null;
+  try{ res = skipAI ? detectWallFlood(ax, ay) : await detectWall(ax, ay); }
+  catch(e){ res = null; }
+  detecting = false;
   if(!res){
     toast("That spot didn't read as a wall — try tapping the middle of the wall.");
+    hint("");
     return;
+  }
+  // If this surface is already papered — e.g. the tap landed on a frame
+  // hanging on a papered wall — select that wall instead of stacking a copy.
+  for(let i = state.walls.length - 1; i >= 0; i--){
+    const ex = state.walls[i];
+    let inter = 0, mine = 0;
+    for(let p = 0; p < res.mask.length; p += 7){
+      if(res.mask[p]){ mine++; if(ex.maskData[p]) inter++; }
+    }
+    if(mine > 0 && inter / mine > 0.7){
+      state.activeWall = i;
+      renderWallChips(); scheduleRender();
+      toast(ex.name + " selected — pick a design below.");
+      hint("");
+      return;
+    }
   }
   const wall = {
     name: "Wall " + (++state.wallSeq),
@@ -1120,18 +1339,23 @@ function addWallFromTap(rx, ry){
   hint("Looks good — flip through designs below, or tap another wall.");
   toast(wall.name + " papered. Tap another wall to add it too.");
 }
-function handleTap(rx, ry){
-  if(!state.roomImg) return;
+async function handleTap(rx, ry){
+  if(!state.roomImg || detecting) return;
   if(state.redoArm && activeWallObj()){
+    detecting = true;
     const ax = clamp(Math.round(rx * state.aW / state.RW), 0, state.aW - 1);
     const ay = clamp(Math.round(ry * state.aH / state.RH), 0, state.aH - 1);
-    const res = detectWall(ax, ay);
+    hint("Re-reading the wall outline…");
+    let res = null;
+    try{ res = await detectWall(ax, ay); }catch(e){ res = null; }
+    detecting = false;
     if(res){
       const w = activeWallObj();
       w.maskData = res.mask; w.maskCanvas = res.maskCanvas; w.quad = res.quad;
       toast(w.name + " outline updated.");
     } else toast("That spot didn't read as a wall — try again.");
     state.redoArm = false; $("btnRedoWall").classList.remove("armed");
+    hint("");
     scheduleRender();
     return;
   }
@@ -1268,7 +1492,7 @@ function loadSampleRoom(autoWall){
   img.onload = ()=>{
     setRoom(img, "sample room");
     if(autoWall){
-      addWallFromTap(500 * state.RW / 1600, 300 * state.RH / 1150);
+      addWallFromTap(500 * state.RW / 1600, 300 * state.RH / 1150, { skipAI: true });
       hint("Sample preview — flip designs below, or tap a side wall.");
     } else {
       hint("Sample room loaded — tap a wall to paper it.");
