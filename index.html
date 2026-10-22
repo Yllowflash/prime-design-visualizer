@@ -45,18 +45,19 @@
       .layout{ display:grid; grid-template-columns:minmax(0,1fr) 372px; gap:18px; max-width:1560px; margin:0 auto; padding:18px; align-items:start; }
       .layout > *{ min-width:0; }
       @media (max-width:1020px){
-        .layout{ grid-template-columns:minmax(0,1fr); padding:12px; }
+        .layout{ grid-template-columns:minmax(0,1fr); padding:16px 14px; }
         .library{ margin-top:0; }
       }
 
       /* ---------- stage ---------- */
-      .stage{ position:relative; background:var(--stage-bg); border:1px solid var(--line); border-radius:18px; overflow:hidden; box-shadow:var(--shadow); }
-      .stage canvas{ display:block; width:100%; height:auto; touch-action:none; }
+      .stage{ position:relative; background:var(--stage-bg); border:2px solid var(--brass); border-radius:18px; overflow:hidden; box-shadow:0 0 0 6px var(--surface), 0 0 0 8px var(--line), var(--shadow); margin:8px; }
+      .stage canvas{ display:block; width:100%; height:auto; margin-inline:auto; touch-action:pan-y; }
+      .stage.lock-touch canvas{ touch-action:none; }
       .stage-hint{ position:absolute; left:50%; bottom:14px; transform:translateX(-50%); background:rgba(24,26,20,.82); color:#f3eddd; font-size:14.5px; padding:9px 16px; border-radius:999px; pointer-events:none; white-space:normal; text-align:center; line-height:1.3; width:max-content; max-width:92%; transition:opacity .25s; }
       .stage-hint:empty{ opacity:0; }
       .drop-veil{ position:absolute; inset:0; display:none; align-items:center; justify-content:center; background:rgba(51,82,63,.78); color:#fff; font-size:20px; letter-spacing:.03em; z-index:5; text-align:center; padding:20px; }
       .stage.dragging .drop-veil{ display:flex; }
-      .compare-handle{ position:absolute; top:0; bottom:0; width:0; display:none; z-index:4; }
+      .compare-handle{ position:absolute; top:0; bottom:0; width:0; display:none; z-index:4; touch-action:none; }
       .compare-handle .bar{ position:absolute; top:0; bottom:0; left:-1.5px; width:3px; background:#fff; box-shadow:0 0 0 1px rgba(0,0,0,.25), 0 0 14px rgba(0,0,0,.35); }
       .compare-handle .knob{ position:absolute; top:50%; left:0; transform:translate(-50%,-50%); width:42px; height:42px; border-radius:50%; background:#fff; color:#333; display:flex; align-items:center; justify-content:center; box-shadow:0 2px 10px rgba(0,0,0,.35); font-size:15px; letter-spacing:-1px; }
       .stage.compare-on .compare-handle{ display:block; }
@@ -123,6 +124,10 @@
       input[type=range]::-moz-range-track{ height:5px; border-radius:3px; background:var(--line); }
       input[type=range]::-moz-range-thumb{ width:24px; height:24px; border-radius:50%; background:var(--brass); border:2px solid #fff; box-shadow:0 1px 5px rgba(0,0,0,.3); }
       .fineprint{ font-size:12.5px; color:var(--ink-soft); margin-top:10px; text-align:center; }
+      .segrow{ display:flex; gap:8px; }
+      .segbtn{ flex:1 1 0; min-height:48px; padding:9px 8px; border-radius:10px; border:1px solid var(--line); background:var(--surface2); color:var(--ink); font-weight:500; font-size:14.5px; line-height:1.25; }
+      .segbtn.sel{ background:var(--accent); border-color:var(--accent); color:var(--accent-ink); }
+      .readout{ background:var(--chip); border:1px solid var(--line); border-radius:10px; padding:10px 12px; font-size:14px; margin-top:12px; }
 
       .toast{ position:fixed; left:50%; bottom:26px; transform:translate(-50%,20px); background:rgba(24,26,20,.92); color:#f3eddd; padding:12px 20px; border-radius:12px; font-size:15px; z-index:80; opacity:0; pointer-events:none; transition:opacity .25s, transform .25s; max-width:88vw; text-align:center; }
       .toast.show{ opacity:1; transform:translate(-50%,0); }
@@ -200,23 +205,59 @@
 
         <div class="step" id="stepAdjust">
           <div class="step-head"><span class="step-num">4</span><h2>True scale &amp; realism</h2></div>
-          <p class="sub">Set the wall's real width and the paper's repeat so the pattern appears at true size.</p>
+          <p class="sub">Give the wall's real size and say whether the design repeats or is one full mural — the preview is drawn true to scale, exactly as it will install.</p>
           <div class="body">
-            <div class="numrow">
+            <div class="field">
+              <label>Design type <span class="val" id="designName"></span></label>
+              <div class="segrow">
+                <button type="button" class="segbtn" id="segRepeat">Repeating pattern</button>
+                <button type="button" class="segbtn" id="segMural">Full mural — one image</button>
+              </div>
+            </div>
+            <div id="grpRepeat">
+              <div class="numrow">
+                <div class="field">
+                  <label>Repeat width</label>
+                  <div class="numin"><input id="inRepW" type="number" inputmode="decimal" step="0.5" min="5" max="300" value="53" /><span class="unit">cm</span></div>
+                </div>
+                <div class="field">
+                  <label>Repeat height</label>
+                  <div class="numin"><input id="inRepH" type="number" inputmode="decimal" step="0.5" min="5" max="300" placeholder="= width" /><span class="unit">cm</span></div>
+                </div>
+              </div>
+              <p class="hint" style="font-size:12.5px;color:var(--ink-soft);margin-top:6px;">The size of one tile of the design — 53 cm is the standard roll repeat.</p>
+            </div>
+            <div id="grpMural" style="display:none;">
+              <div class="numrow">
+                <div class="field">
+                  <label>Printed width</label>
+                  <div class="numin"><input id="inMurW" type="number" inputmode="decimal" step="0.1" min="0.3" max="30" value="3.6" /><span class="unit">m</span></div>
+                </div>
+                <div class="field">
+                  <label>Printed height</label>
+                  <div class="numin"><input id="inMurH" type="number" inputmode="decimal" step="0.1" min="0.3" max="15" value="2.4" /><span class="unit">m</span></div>
+                </div>
+              </div>
+              <div class="field" style="margin-top:12px;margin-bottom:2px;">
+                <label>Placement</label>
+                <div class="segrow">
+                  <button type="button" class="segbtn" id="segFill">Fill wall — crop overflow</button>
+                  <button type="button" class="segbtn" id="segFit">Fit exactly — stretch</button>
+                </div>
+                <p class="hint">Fill hangs the mural at its true printed size and trims what overflows, like a real install. Fit stretches it to the wall's edges.</p>
+              </div>
+            </div>
+            <div class="numrow" style="margin-top:14px;">
               <div class="field">
                 <label>Wall width</label>
                 <div class="numin"><input id="inWallW" type="number" inputmode="decimal" step="0.1" min="0.5" max="30" value="3.6" /><span class="unit">m</span></div>
               </div>
               <div class="field">
-                <label>Repeat width</label>
-                <div class="numin"><input id="inRepW" type="number" inputmode="decimal" step="0.5" min="5" max="300" value="53" /><span class="unit">cm</span></div>
-              </div>
-              <div class="field">
-                <label>Repeat height</label>
-                <div class="numin"><input id="inRepH" type="number" inputmode="decimal" step="0.5" min="5" max="300" placeholder="= width" /><span class="unit">cm</span></div>
+                <label>Wall height</label>
+                <div class="numin"><input id="inWallH" type="number" inputmode="decimal" step="0.1" min="0.5" max="15" value="2.4" /><span class="unit">m</span></div>
               </div>
             </div>
-            <div class="field" style="margin-top:14px;">
+            <div class="field" id="fieldSize" style="margin-top:14px;">
               <label>Pattern size <span class="val" id="valSize">100%</span></label>
               <input type="range" id="rgSize" min="40" max="250" value="100" />
               <p class="hint">100% is true scale from the measurements above — nudge it to eyeball a fit.</p>
@@ -230,6 +271,11 @@
               <label>Pattern intensity <span class="val" id="valInt">100%</span></label>
               <input type="range" id="rgInt" min="20" max="100" value="100" />
             </div>
+            <div class="switchrow">
+              <label for="swGrid">1-metre grid overlay</label>
+              <input type="checkbox" class="switch" id="swGrid" />
+            </div>
+            <p class="readout" id="scaleReadout"></p>
           </div>
         </div>
 
@@ -296,6 +342,7 @@ const state = {
   redoArm: false,
   compareOn: false,
   compareX: 0.55,                // 0..1 split
+  gridOn: false,
   light: 0.75,
   intensity: 1.0,
   wallSeq: 0,
@@ -310,7 +357,8 @@ function addPattern(name, img){
   // cover-fit thumbnail
   const s = Math.max(184/img.width, 184/img.height);
   tc.drawImage(img, (184-img.width*s)/2, (184-img.height*s)/2, img.width*s, img.height*s);
-  const p = { id, name, img, thumb: t.toDataURL("image/png") };
+  const p = { id, name, img, thumb: t.toDataURL("image/png"),
+    type: "repeat", repeatW: 53, repeatH: 0, muralW: 3.6, muralH: 2.4, muralFit: "fill" };
   state.patterns.push(p);
   if(!state.currentDesign) state.currentDesign = id;
   renderStrip();
@@ -335,6 +383,7 @@ function applyDesign(id){
   const w = activeWallObj();
   if(w){ w.designId = id; w.patCache = null; scheduleRender(); toast("Design applied to " + w.name + "."); }
   renderStrip();
+  syncAdjustInputs();
 }
 
 /* ---------------- generated sample patterns ---------------- */
@@ -543,6 +592,7 @@ function setRoom(img, name){
   edgeBarrier = null;
   state.walls = []; state.activeWall = -1;
   view.width = state.RW; view.height = state.RH;
+  fitStage();
   renderWallChips();
   scheduleRender();
 }
@@ -759,12 +809,12 @@ function quadAvgH(q){ return (Math.hypot(q[3].x-q[0].x,q[3].y-q[0].y) + Math.hyp
 function buildPatternCanvas(wall, outW, outH){
   const pat = patternById(wall.designId);
   if(!pat) return null;
-  const repWm = Math.max(0.05, wall.repeatW / 100);
-  const repHm = Math.max(0.05, (wall.repeatH || wall.repeatW) / 100);
+  if(pat.type === "mural") return buildMuralCanvas(wall, pat);
+  const repWm = Math.max(0.05, (pat.repeatW || 53) / 100);
+  const repHm = Math.max(0.05, (pat.repeatH || pat.repeatW || 53) / 100);
   const sizeF = 100 / wall.sizePct;
   const tilesX = wall.widthM / repWm * sizeF;
-  const wallHm = wall.widthM * (quadAvgH(wall.quad) / Math.max(1, quadAvgW(wall.quad)));
-  const tilesY = wallHm / repHm * sizeF;
+  const tilesY = wall.heightM / repHm * sizeF;
   let tilePx = 240;
   let cw = tilesX * tilePx, ch = tilesY * tilePx * (repHm / repWm);
   const cap = 2300;
@@ -775,6 +825,23 @@ function buildPatternCanvas(wall, outW, outH){
   for(let ty=0; ty*tileH < ch + tileH; ty++)
     for(let tx=0; tx*tilePx < cw + tilePx; tx++)
       x.drawImage(pat.img, tx*tilePx, ty*tileH, tilePx, tileH);
+  return c;
+}
+function buildMuralCanvas(wall, pat){
+  // Built in "wall space" — the canvas spans exactly the wall's real size,
+  // so the mural lands at its true printed size and is never enlarged past it.
+  const ppm = 560;   // wall-space pixels per metre
+  let cw = Math.round(wall.widthM * ppm), ch = Math.round(wall.heightM * ppm);
+  const cap = 2400;
+  if(cw > cap || ch > cap){ const f = cap / Math.max(cw, ch); cw = Math.round(cw * f); ch = Math.round(ch * f); }
+  cw = clamp(cw, 32, cap); ch = clamp(ch, 32, cap);
+  const c = mkCanvas(cw, ch), x = c.getContext("2d");
+  if(pat.muralFit === "fit"){ x.drawImage(pat.img, 0, 0, cw, ch); return c; }
+  // Fill: scale the print just enough to cover (only ever down from print
+  // size), centred — the overflow is what a real install trims away.
+  const k = Math.min(1, Math.max(wall.widthM / pat.muralW, wall.heightM / pat.muralH));
+  const dw = pat.muralW * k * (cw / wall.widthM), dh = pat.muralH * k * (ch / wall.heightM);
+  x.drawImage(pat.img, (cw - dw) / 2, (ch - dh) / 2, dw, dh);
   return c;
 }
 function wallShadeCanvas(wall, lumCanvas, aK){
@@ -841,6 +908,7 @@ function composite(W, H, roomSource, lumCanvas, scaleK){
   return out;
 }
 function scheduleRender(){
+  updateReadout();
   if(state.renderQueued) return;
   state.renderQueued = true;
   requestAnimationFrame(()=>{ state.renderQueued = false; drawDisplay(); });
@@ -901,6 +969,25 @@ function drawOverlays(){
       vctx.fillStyle = "#a5813f"; vctx.fill();
     });
   }
+  if(state.gridOn && w){
+    const H = homography(w.quad);
+    const nx = Math.floor(w.widthM), ny = Math.floor(w.heightM);
+    vctx.lineWidth = 2;
+    for(let pass=0; pass<2; pass++){
+      vctx.strokeStyle = pass ? "rgba(255,255,255,.85)" : "rgba(30,25,15,.45)";
+      vctx.beginPath();
+      for(let i=1;i<=nx;i++){ const u=i/w.widthM, a=H(u,0), b=H(u,1); vctx.moveTo(a[0],a[1]); vctx.lineTo(b[0],b[1]); }
+      for(let j=1;j<=ny;j++){ const v=j/w.heightM, a=H(0,v), b=H(1,v); vctx.moveTo(a[0],a[1]); vctx.lineTo(b[0],b[1]); }
+      vctx.stroke();
+    }
+    const lp = H(0.015, 0.02);
+    vctx.save();
+    vctx.font = "600 17px Jost, sans-serif"; vctx.textAlign = "left";
+    vctx.shadowColor = "rgba(0,0,0,.65)"; vctx.shadowBlur = 6;
+    vctx.fillStyle = "#fff";
+    vctx.fillText("grid squares = 1 m", lp[0], lp[1] + 18);
+    vctx.restore();
+  }
   if(state.redoArm){
     vctx.fillStyle = "rgba(24,26,20,.45)"; vctx.fillRect(0,0,state.RW,state.RH);
     vctx.fillStyle = "#fff"; vctx.font = "600 26px Jost, sans-serif"; vctx.textAlign = "center";
@@ -909,21 +996,96 @@ function drawOverlays(){
 }
 function positionCompareHandle(){
   const h = $("cmpHandle");
-  h.style.left = (state.compareX * 100) + "%";
+  h.style.left = (view.offsetLeft + state.compareX * view.clientWidth) + "px";
+}
+
+/* On phone widths the preview must never swallow the whole screen: cap its
+   height so the page around it stays visible and reachable, and let it sit
+   centred inside the framed stage like a picture on a mat. */
+function fitStage(){
+  if(!state.RW){ view.style.width = ""; return; }
+  if(window.innerWidth > 1020){ view.style.width = ""; return; }
+  const availW = $("stageCol").clientWidth - 16;   // stage margin
+  const maxH = Math.round(window.innerHeight * 0.62);
+  const dispH = availW * state.RH / state.RW;
+  view.style.width = dispH > maxH ? Math.round(maxH * state.RW / state.RH) + "px" : "";
+}
+let fitTimer = null;
+window.addEventListener("resize", ()=>{
+  clearTimeout(fitTimer);
+  fitTimer = setTimeout(()=>{ fitStage(); if(state.compareOn) positionCompareHandle(); }, 120);
+});
+/* Corner-refining and the compare slider need full drag control; everywhere
+   else the canvas lets vertical swipes scroll the page. */
+function syncTouchLock(){
+  stage.classList.toggle("lock-touch", state.cornersMode || state.compareOn);
 }
 
 /* ---------------- walls: create / select / chips ---------------- */
+function editDesign(){
+  const w = activeWallObj();
+  return patternById(w ? w.designId : state.currentDesign) || patternById(state.currentDesign);
+}
+let lastReadout = "";
+function fmtM(v){ return String(Math.round(v * 100) / 100); }
+function updateReadout(){
+  const el = $("scaleReadout"); if(!el) return;
+  const w = activeWallObj();
+  let txt;
+  if(!w) txt = "Tap a wall in the photo — its true-scale check will appear here.";
+  else{
+    const d = patternById(w.designId);
+    const head = "Wall " + fmtM(w.widthM) + " m × " + fmtM(w.heightM) + " m";
+    if(!d) txt = head + " · choose a design below.";
+    else if(d.type === "mural"){
+      const pm = fmtM(d.muralW) + " m × " + fmtM(d.muralH) + " m print";
+      if(d.muralFit === "fit"){
+        const sx = Math.round(w.widthM / d.muralW * 100), sy = Math.round(w.heightM / d.muralH * 100);
+        txt = head + " · " + d.name + ", " + pm + " → fit exactly: " + sx + "% wide × " + sy + "% high" + (sx === 100 && sy === 100 ? " — the print is the wall's exact size." : " — stretched to the wall's edges.");
+      } else {
+        const k = Math.max(w.widthM / d.muralW, w.heightM / d.muralH);
+        if(k > 1){
+          txt = head + " · " + d.name + ", " + pm + " → the print is smaller than the wall, so it can't cover it — short " + Math.max(0, Math.round((w.widthM - d.muralW) * 100)) + " cm across and " + Math.max(0, Math.round((w.heightM - d.muralH) * 100)) + " cm down. Order a larger print.";
+        } else {
+          const tW = Math.round((d.muralW * k - w.widthM) * 100), tH = Math.round((d.muralH * k - w.heightM) * 100);
+          txt = head + " · " + d.name + ", " + pm + " → covers the wall" + (tW === 0 && tH === 0 ? " exactly — nothing to trim." : " — trims " + tW + " cm across the width and " + tH + " cm down the height, like a real install.");
+        }
+      }
+    } else {
+      const rW = d.repeatW || 53, rH = d.repeatH || d.repeatW || 53;
+      const ax = Math.max(1, Math.round(w.widthM / (rW / 100))), ay = Math.max(1, Math.round(w.heightM / (rH / 100)));
+      txt = head + " · " + d.name + " — repeat " + rW + " × " + rH + " cm → ≈ " + ax + " across × " + ay + " down.";
+    }
+  }
+  if(txt !== lastReadout){ lastReadout = txt; el.textContent = txt; }
+}
 function syncAdjustInputs(){
   const w = activeWallObj();
+  const d = editDesign();
   $("inWallW").value = w ? w.widthM : 3.6;
-  $("inRepW").value = w ? w.repeatW : 53;
-  $("inRepH").value = w && w.repeatH ? w.repeatH : "";
+  $("inWallH").value = w ? w.heightM : 2.4;
+  $("inRepW").value = d ? (d.repeatW || 53) : 53;
+  $("inRepH").value = d && d.repeatH ? d.repeatH : "";
+  $("inMurW").value = d ? d.muralW : 3.6;
+  $("inMurH").value = d ? d.muralH : 2.4;
   $("rgSize").value = w ? w.sizePct : 100;
   $("valSize").textContent = (w ? w.sizePct : 100) + "%";
+  $("designName").textContent = d ? "· " + d.name : "";
+  const isMural = !!d && d.type === "mural";
+  $("grpRepeat").style.display = isMural ? "none" : "";
+  $("grpMural").style.display = isMural ? "" : "none";
+  $("fieldSize").style.display = isMural ? "none" : "";
+  $("segRepeat").classList.toggle("sel", !isMural);
+  $("segMural").classList.toggle("sel", isMural);
+  $("segFill").classList.toggle("sel", !d || d.muralFit !== "fit");
+  $("segFit").classList.toggle("sel", !!d && d.muralFit === "fit");
   const dis = !w;
-  ["inWallW","inRepW","inRepH","rgSize"].forEach(id=> $(id).disabled = dis);
+  ["inWallW","inWallH","rgSize"].forEach(id=> $(id).disabled = dis);
+  const ddis = !d;
+  ["inRepW","inRepH","inMurW","inMurH"].forEach(id=> $(id).disabled = ddis);
   $("btnDeleteWall").disabled = dis;
   $("btnRedoWall").disabled = dis;
+  updateReadout();
 }
 function renderWallChips(){
   const box = $("wallChips");
@@ -948,7 +1110,7 @@ function addWallFromTap(rx, ry){
   const wall = {
     name: "Wall " + (++state.wallSeq),
     maskData: res.mask, maskCanvas: res.maskCanvas, quad: res.quad,
-    designId: state.currentDesign, widthM: 3.6, repeatW: 53, repeatH: 0, sizePct: 100,
+    designId: state.currentDesign, widthM: 3.6, heightM: 2.4, sizePct: 100,
   };
   state.walls.push(wall);
   state.activeWall = state.walls.length - 1;
@@ -1148,6 +1310,7 @@ $("btnDeleteWall").addEventListener("click", ()=>{
 });
 $("swCorners").addEventListener("change", e=>{
   state.cornersMode = e.target.checked;
+  syncTouchLock();
   if(state.cornersMode && !activeWallObj()) toast("Tap a wall first, then drag its corners.");
   hint(state.cornersMode ? "Drag the corner dots to fine-tune the outline." : "Tap a wall to paper it — tap another wall to add it too.");
   scheduleRender();
@@ -1161,12 +1324,22 @@ function bindNum(id, key, parse){
     if(v !== null && isFinite(v) && v > 0){ w[key] = v; scheduleRender(); }
   });
 }
+function bindDesignNum(id, key){
+  $(id).addEventListener("input", e=>{
+    const d = editDesign(); if(!d) return;
+    const v = parseFloat(e.target.value);
+    if(isFinite(v) && v > 0){ d[key] = v; scheduleRender(); }
+  });
+}
 bindNum("inWallW", "widthM", v => parseFloat(v));
-bindNum("inRepW", "repeatW", v => parseFloat(v));
+bindNum("inWallH", "heightM", v => parseFloat(v));
+bindDesignNum("inRepW", "repeatW");
+bindDesignNum("inMurW", "muralW");
+bindDesignNum("inMurH", "muralH");
 $("inRepH").addEventListener("input", e=>{
-  const w = activeWallObj(); if(!w) return;
+  const d = editDesign(); if(!d) return;
   const v = parseFloat(e.target.value);
-  w.repeatH = isFinite(v) && v > 0 ? v : 0;
+  d.repeatH = isFinite(v) && v > 0 ? v : 0;
   scheduleRender();
 });
 $("rgSize").addEventListener("input", e=>{
@@ -1186,9 +1359,17 @@ $("rgInt").addEventListener("input", e=>{
   scheduleRender();
 });
 
+// design type, mural placement, grid overlay
+$("segRepeat").addEventListener("click", ()=>{ const d = editDesign(); if(!d) return; d.type = "repeat"; syncAdjustInputs(); scheduleRender(); });
+$("segMural").addEventListener("click", ()=>{ const d = editDesign(); if(!d) return; d.type = "mural"; syncAdjustInputs(); scheduleRender(); toast("Full mural — placed once, at its true printed size."); });
+$("segFill").addEventListener("click", ()=>{ const d = editDesign(); if(!d) return; d.muralFit = "fill"; syncAdjustInputs(); scheduleRender(); });
+$("segFit").addEventListener("click", ()=>{ const d = editDesign(); if(!d) return; d.muralFit = "fit"; syncAdjustInputs(); scheduleRender(); });
+$("swGrid").addEventListener("change", e=>{ state.gridOn = e.target.checked; scheduleRender(); });
+
 // compare & download
 $("swCompare").addEventListener("change", e=>{
   state.compareOn = e.target.checked;
+  syncTouchLock();
   stage.classList.toggle("compare-on", state.compareOn);
   $("cmpField").style.display = state.compareOn ? "block" : "none";
   if(state.compareOn && !state.walls.length) toast("Paper a wall first — then compare before & after.");
